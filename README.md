@@ -1,204 +1,353 @@
-# Linua Updater
+# **Linua Updater**
 
-A lightweight and efficient updater for The Sims 4 DLC content.
-
-## Features
-- **Easy DLC Installation**: Simple one-click installation of Expansion Packs, Game Packs, Stuff Packs, and Free Packs
-- **Automatic Game Detection**: Automatically finds your Sims 4 installation folder
-- **Safe & Secure**: Only downloads from verified sources
-- **Progress Tracking**: Real-time download and installation progress
-- **Repair System**: Built-in game file verification and repair
-- **Dark Theme**: Easy on the eyes interface
-
-## System Requirements
-- Windows 10 or later
-- The Sims 4 installed
-- 80GB free disk space (for large DLC installations)
-- Internet connection
-
-## How to Use
-1. Download the latest `Linua-Updater.exe` from the Releases page
-2. Run the executable (no installation required)
-3. Select your Sims 4 folder (usually auto-detected)
-4. Choose which DLC you want to install
-5. Click Update and wait for installation to complete
-
-## 🇷🇺 Для пользователей из России / For Russian users
-
-**Известная проблема**: EP03 "City Living" и EP06 "Get Famous" могут не скачиваться через программу из-за блокировок в РФ.
-
-### 🔧 Решение: Полностью ручная установка EP03 и EP06
-
-#### 📥 1. Скачайте архивы вручную:
-- **EP03 - City Living (2.6 GB):** https://gofile.io/d/7zzJA5  
-  *(Если не открывается — включите VPN)*
-- **EP06 - Get Famous (2.6 GB):** https://gofile.io/d/PJ6wc4  
-  *(Если не открывается — включите VPN)*
-
-#### 🛠️ 2. Распакуйте архивы:
-1. Убедитесь что у вас есть **WinRAR** или **7-Zip**
-2. Распакуйте оба архива — в каждом будут **две папки**:
-EP03/
-_Installer/
-
-#### 📂 3. Установите вручную в корень The Sims 4:
-1. Найдите папку **The Sims 4** (обычно):
-- `C:\Program Files (x86)\Steam\steamapps\common\The Sims 4`
-- или где у вас установлена игра
-
-2. **Скопируйте обе папки** из распакованного архива в корень The Sims 4:
-- Папку `EP03` → в `The Sims 4\`
-- Папку `_Installer` → в `The Sims 4\`
-
-3. **Если Windows спрашивает "Заменить файлы?"** — нажмите **"Заменить файлы в папке назначения"**
-
-4. **Повторите для EP06** — скопируйте его `EP06` и `_Installer` (файлы заменятся автоматически)
-
-#### ✅ **Правильная структура после установки:**
-The Sims 4
-├── EP03
-├── EP06
-├── _Installer\ (общий для всех DLC)
-├── Game
-├── Data
-└── ... другие папки
-
-#### 🎮 5. Запустите Linua Updater для остальных DLC:
-1. Запустите **Linua Updater**
-2. **НЕ выбирайте EP03 и EP06** (они уже установлены вручную)
-3. Выберите остальные нужные DLC
-4. Нажмите **"Update"** — программа установит все кроме EP03/EP06
-
-#### 🎥 **Видеоинструкция по распаковке:**
-📺 **Смотрите с 3:00 минуты:** https://www.youtube.com/watch?v=6UonIuoSpOY&t=11s
+Modern DLC management tool for The Sims 4
+© 2024–2025 l1ntol — All Rights Reserved
 
 ---
 
-**Важно!** EP03 и EP06 устанавливаются **ТОЛЬКО ВРУЧНУЮ**. Программа их не установит из-за блокировок.
+## **Overview**
 
-## Supported DLC
-### Expansion Packs
-- Get to Work (EP01)
-- Get Together (EP02)
-- City Living (EP03) — *только ручная установка для РФ*
-- Cats and Dogs (EP04)
-- Seasons (EP05)
-- Get Famous (EP06) — *только ручная установка для РФ*
-- Island Living (EP07)
-- Discover University (EP08)
-- Eco Lifestyle (EP09)
-- Snowy Escape (EP10)
-- Cottage Living (EP11)
-- High School Years (EP12)
-- Growing Together (EP13)
-- Horse Ranch (EP14)
-- For Rent (EP15)
-- Lovestruck (EP16)
+**Linua Updater** is a lightweight Windows application that simplifies installation, management, and verification of DLC content for *The Sims 4*.
+The tool automates game folder detection, downloading, extraction, and validation while maintaining high reliability and clear, predictable behavior.
 
-### Game Packs
-- Outdoor Retreat (GP01)
-- Spa Day (GP02)
-- Dine Out (GP03)
-- Vampires (GP04)
-- Parenthood (GP05)
-- Jungle Adventure (GP06)
-- StrangerVille (GP07)
-- Realm of Magic (GP08)
-- Star Wars: Journey to Batuu (GP09)
-- Dream Home Decorator (GP10)
-- My Wedding Stories (GP11)
-- Werewolves (GP12)
+---
 
-### Stuff Packs
-- Luxury Party Stuff (SP01)
-- Perfect Patio Stuff (SP02)
-- Cool Kitchen Stuff (SP03)
-- Spooky Stuff (SP04)
-- Movie Hangout Stuff (SP05)
-- Romantic Garden Stuff (SP06)
-- Kids Room Stuff (SP07)
-- Backyard Stuff (SP08)
-- Vintage Glamour Stuff (SP09)
-- Bowling Night Stuff (SP10)
-- Fitness Stuff (SP11)
-- Toddler Stuff (SP12)
-- Laundry Day Stuff (SP13)
-- My First Pet Stuff (SP14)
-- Moschino Stuff (SP15)
-- Tiny Living Stuff (SP16)
-- Nifty Knitting (SP17)
-- Paranormal Stuff (SP18)
+## **Features**
 
-### Free Packs
-- Holiday Celebration Pack (FP01)
+* **Automatic Sims 4 folder detection**
+* **One-click DLC installation**
+* **Secure and verified download sources**
+* **Real-time progress logging**
+* **Automatic 7-Zip detection** for multipart archives
+* **Integrated Repair System** for core game files
+* **Minimal dark interface** designed for comfort
 
-## Troubleshooting
-### Common Issues
-**EP03/EP06 не устанавливаются через программу (для РФ)**:
-- Это нормально! Следуйте инструкции "Для пользователей из России" выше
-- Устанавливайте EP03/EP06 вручную (2 папки в корень игры)
-- Остальные DLC установятся через программу
+---
 
-**Game not detected automatically**:
-- Use the "Browse" button to manually select your Sims 4 folder
-- Typical locations:
-  - `C:\Program Files (x86)\Steam\steamapps\common\The Sims 4`
-  - `C:\Program Files\EA Games\The Sims 4`
-  - `C:\Program Files (x86)\Origin Games\The Sims 4`
+## **System Requirements**
 
-**Installation fails**:
-- Check your internet connection
-- Ensure you have enough disk space (at least 10GB free)
-- Run as Administrator if experiencing permission issues
-- Temporarily disable antivirus if it blocks the download
+* Windows 10 or Windows 11
+* Installed copy of *The Sims 4*
+* ~80 GB free disk space (for full DLC installation)
+* Stable Internet connection
 
-**DLC not appearing in game**:
-- Use the "Repair" function to verify game files
-- Ensure the DLC folders are in your main Sims 4 directory
-- Restart the game after installation
+---
 
-## Safety Notice
-⚠️ **Important**: This software is completely free. If you paid for it, you were scammed.
+## **How to Use**
 
-The only legitimate sources for this program are:
-- Official GitHub repository: `l1ntol/linua-updater`
-- Official releases page
+1. Download the latest **Linua-Updater.exe** from the Releases page
+2. Run the application (no installation required)
+3. Select your Sims 4 folder
+4. Choose the DLC you want to install
+5. Press **Update**
 
-**Do not download from any other sources.**
+---
 
-## 🛡️ Security & False Positives / Безопасность и ложные срабатывания
+# ⚠️ **Important Notice (All Users)**
 
-### Fake versions with viruses / Подделки с вирусами
-Scammers steal the updater, add viruses and distribute fake versions.
+### **EP03 — City Living**
 
-### Antivirus false positives / Ложные срабатывания антивирусов
-All pirated software is detected as "threats". This is normal:
-- Anadius Unlocker → "virus"
-- ZloEmu → "virus"  
-- Our updater → "virus"
+### **EP06 — Get Famous**
 
-### How to verify safety / Как проверить безопасность
-1. Download source code from GitHub
-2. Check it (1100 lines, nothing hidden)
-3. Run in sandbox if unsure
+These two DLC **cannot be downloaded automatically by Linua Updater**.
 
-### Original vs Fake / Оригинал vs Подделка
-- ✅ Original: open source, no hidden processes
-- ❌ Fake: closed source, hidden processes, background downloads
+This is a **global technical limitation**:
 
-## Technical Information
-- Version: 2.0
-- Platform: Windows
-- Architecture: x64
-- Requirements: .NET Framework 4.8 (usually pre-installed on Windows 10/11)
+* The available mirrors do **not support direct programmatic downloads**
+* Both DLC are distributed as **multipart archives (.7z.001 / .002)**
+* They require **manual confirmation**, which prevents automated retrieval
 
-## Support
-Если у вас проблемы с EP03/EP06:
-1. **Прочитайте раздел "Для пользователей из России" выше**
-2. Следуйте инструкциям по ручной установке
-3. Убедитесь что скопировали **обе папки** в **корень игры**
+Because of this, **EP03 and EP06 must be installed manually by all users**, regardless of region or VPN.
 
-**Внимание:** Issues про EP03/EP06 без попытки ручной установки будут закрываться!
+A complete manual installation guide is provided below.
 
-## Legal
-This project is not affiliated with or endorsed by Electronic Arts (EA) or Maxis. The Sims 4 is a registered trademark of Electronic Arts Inc. This software is intended for educational purposes and personal use only.
+---
+
+# **Manual Installation (EP03 & EP06)**
+
+### **1. Download the archives**
+
+Official verified mirrors:
+
+* **EP03 — City Living**
+  [https://gofile.io/d/7zzJA5](https://gofile.io/d/7zzJA5)
+
+* **EP06 — Get Famous**
+  [https://gofile.io/d/PJ6wc4](https://gofile.io/d/PJ6wc4)
+
+---
+
+### **2. Extract both archives**
+
+Each archive contains exactly two folders:
+
+```
+EP03 (or EP06)
+_Installer
+```
+
+---
+
+### **3. Place the folders into your Sims 4 directory**
+
+Your game folder is usually located at:
+
+```
+C:\Program Files (x86)\Steam\steamapps\common\The Sims 4
+```
+
+Copy both folders into **The Sims 4** directory.
+
+If Windows asks:
+**“Replace the files in the destination?”** → choose **Replace**.
+
+Repeat for the second DLC.
+
+---
+
+### **Correct folder structure after installation**
+
+```
+The Sims 4
+├── EP03
+├── EP06
+├── _Installer
+├── Game
+├── Data
+└── ...
+```
+
+---
+
+### **4. Continue installation through Linua Updater**
+
+* Open **Linua Updater**
+* **Do NOT select EP03 or EP06**
+* Select any other DLC you need
+* Press **Update**
+
+---
+
+## **Supported DLC**
+
+## **Expansion Packs**
+
+* EP01 — Get to Work
+* EP02 — Get Together
+* EP03 — City Living
+* EP04 — Cats & Dogs
+* EP05 — Seasons
+* EP06 — Get Famous
+* EP07 — Island Living
+* EP08 — Discover University
+* EP09 — Eco Lifestyle
+* EP10 — Snowy Escape
+* EP11 — Cottage Living
+* EP12 — High School Years
+* EP13 — Growing Together
+* EP14 — Horse Ranch
+* EP15 — For Rent
+* EP16 — Lovestruck
+* EP17 — Life and Death
+* EP18 — Businesses and Hobbies
+* EP19 — Enchanted by Nature
+* EP20 — Adventure Awaits
+
+---
+
+## **Game Packs**
+
+* GP01 — Outdoor Retreat
+* GP02 — Spa Day
+* GP03 — Dine Out
+* GP04 — Vampires
+* GP05 — Parenthood
+* GP06 — Jungle Adventure
+* GP07 — StrangerVille
+* GP08 — Realm of Magic
+* GP09 — Star Wars: Journey to Batuu
+* GP10 — Dream Home Decorator
+* GP11 — My Wedding Stories
+* GP12 — Werewolves
+
+---
+
+## **Stuff Packs & Kits**
+
+* SP01 — Luxury Party Stuff
+* SP02 — Perfect Patio Stuff
+* SP03 — Cool Kitchen Stuff
+* SP04 — Spooky Stuff
+* SP05 — Movie Hangout Stuff
+* SP06 — Romantic Garden Stuff
+* SP07 — Kids Room Stuff
+* SP08 — Backyard Stuff
+* SP09 — Vintage Glamour Stuff
+* SP10 — Bowling Night Stuff
+* SP11 — Fitness Stuff
+* SP12 — Toddler Stuff
+* SP13 — Laundry Day Stuff
+* SP14 — My First Pet Stuff
+* SP15 — Moschino Stuff
+* SP16 — Tiny Living Stuff
+* SP17 — Nifty Knitting
+* SP18 — Paranormal Stuff
+* SP20 — Throwback Fit Kit
+* SP21 — Country Kitchen Kit
+* SP22 — Bust the Dust Kit
+* SP23 — Courtyard Oasis Kit
+* SP24 — Fashion Street Kit
+* SP25 — Industrial Loft Kit
+* SP26 — Incheon Arrivals Kit
+* SP28 — Modern Menswear Kit
+* SP29 — Blooming Rooms Kit
+* SP30 — Carnaval Streetwear Kit
+* SP31 — Decor to the Max Kit
+* SP32 — Moonlight Chic Kit
+* SP33 — Little Campers Kit
+* SP34 — First Fits Kit
+* SP35 — Desert Luxe Kit
+* SP36 — Pastel Pop Kit
+* SP37 — Everyday Clutter Kit
+* SP38 — Simtimates Collection Kit
+* SP39 — Bathroom Clutter Kit
+* SP40 — Greenhouse Haven Kit
+* SP41 — Basement Treasures Kit
+* SP42 — Grunge Revival Kit
+* SP43 — Book Nook Kit
+* SP44 — Poolside Splash Kit
+* SP45 — Modern Luxe Kit
+* SP46 — Home Chef Hustle Stuff Pack
+* SP47 — Castle Estate Kit
+* SP48 — Goth Galore Kit
+* SP49 — Crystal Creations Stuff Pack
+* SP50 — Urban Homage Kit
+* SP51 — Party Essentials Kit
+* SP52 — Riviera Retreat Kit
+* SP53 — Cozy Bistro Kit
+* SP54 — Artist Studio Kit
+* SP55 — Storybook Nursery Kit
+* SP56 — Sweet Slumber Party Kit
+* SP57 — Cozy Kitsch Kit
+* SP58 — Comfy Gamer Kit
+* SP59 — Secret Sanctuary Kit
+* SP60 — Casanova Cave Kit
+* SP61 — Refined Living Room Kit
+* SP62 — Business Chic Kit
+* SP63 — Sleek Bathroom Kit
+* SP64 — Sweet Allure Kit
+* SP65 — Restoration Workshop Kit
+* SP66 — Golden Years Kit
+* SP67 — Kitchen Clutter Kit
+* SP69 — Autumn Apparel Kit
+* SP71 — Grange Mudroom Kit
+* SP72 — Essential Glam Kit
+* SP73 — Modern Retreat Kit
+* SP74 — Garden to Table Kit
+
+---
+
+## **Free Packs**
+
+* FP01 — Holiday Celebration Pack
+
+---
+
+## **Troubleshooting**
+
+### **Game not detected**
+
+* Select folder manually using **Browse**
+
+### **Installation fails**
+
+* Check Internet connection
+* Ensure at least 80 GB free disk space
+* Run as Administrator
+* Disable antivirus temporarily if blocking downloads
+
+### **DLC not showing in game**
+
+* Run **Repair**
+* Confirm the DLC folders exist in the game directory
+* Restart the game
+
+### **Multipart archive errors**
+
+* Install **7-Zip**
+
+---
+
+# **Security Notice**
+
+⚠ **This software is completely free. If you paid for it, you were scammed.**
+
+The only legitimate sources are:
+
+* Official GitHub repository: `l1ntol/Linua-Updater`
+* Official Releases page
+
+Do **NOT** download this tool from any third-party websites or repacks.
+
+### **About antivirus warnings**
+
+False positives can occur in tools that manage archives and external downloads.
+This also affects:
+
+* Anadius Unlocker
+* ZloEmu
+* Other community tools
+
+This is expected behavior.
+
+---
+
+## **Original vs Fake**
+
+### ✔ **Original**
+
+* Transparent source code
+* No hidden processes
+* No background downloads
+* Safe and predictable
+
+### ❌ **Fake**
+
+* Hidden scripts
+* Modified EXE
+* Suspicious background activity
+* May contain malware
+
+If your version behaves differently → you downloaded a **fake**.
+
+---
+
+## **Technical Information**
+
+* Version: 2.0
+* Platform: Windows
+* Architecture: x64
+* Requires: .NET Framework 4.8
+
+---
+
+# **Copyright & Legal**
+
+© 2024–2025 l1ntol — **All Rights Reserved**
+
+You may:
+
+* Use the program for personal purposes
+* Review the source code for transparency
+
+You may **NOT**:
+
+* Modify, fork or redistribute the code
+* Reupload the executable
+* Publish this tool on third-party websites
+* Create derivative works
+
+Unauthorized distribution may result in a **DMCA takedown**.
+
+This project is not affiliated with or endorsed by Electronic Arts or Maxis.
+*The Sims 4* is a trademark of Electronic Arts Inc.
