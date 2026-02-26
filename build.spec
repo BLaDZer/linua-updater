@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['LinuaUpdater_v4.2.py'],
+    ['LinuaUpdater_v4.3.0.py'],
     pathex=[],
     binaries=[],
     datas=[],
