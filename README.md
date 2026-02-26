@@ -65,99 +65,16 @@ For detailed changelog, see individual release notes.
 
 ---
 
-# ⚠️ **Important Notice (All Users)**
-
-### **EP03 — City Living**
-### **EP06 — Get Famous**
-
-These two DLC **cannot be downloaded automatically by Linua Updater**.
-
-This is a **global technical limitation**:
-
-* The available mirrors do **not support direct programmatic downloads**
-* Both DLC are distributed as **multipart archives (.7z.001 / .002)**
-* They require **manual confirmation**, which prevents automated retrieval
-
-Because of this, **EP03 and EP06 must be installed manually by all users**, regardless of region or VPN.
-
-A complete manual installation guide is provided below.
-
----
-
-# **Manual Installation (EP03 & EP06)**
-
-### **1. Download the archives**
-
-Official verified mirrors:
-
-* **EP03 — City Living**  
-  [https://gofile.io/d/7zzJA5](https://gofile.io/d/7zzJA5)
-
-* **EP06 — Get Famous**  
-  [https://gofile.io/d/PJ6wc4](https://gofile.io/d/PJ6wc4)
-
----
-
-### **2. Extract both archives**
-
-Each archive contains exactly two folders:
-
-```
-EP03 (or EP06)
-_Installer
-```
-
----
-
-### **3. Place the folders into your Sims 4 directory**
-
-Your game folder is usually located at:
-
-```
-C:\Program Files (x86)\Steam\steamapps\common\The Sims 4
-```
-
-Copy both folders into **The Sims 4** directory.
-
-If Windows asks:  
-**"Replace the files in the destination?"** → choose **Replace**.
-
-Repeat for the second DLC.
-
----
-
-### **Correct folder structure after installation**
-
-```
-The Sims 4
-├── EP03
-├── EP06
-├── _Installer
-├── Game
-├── Data
-└── ...
-```
-
----
-
-### **4. Continue installation through Linua Updater**
-
-* Open **Linua Updater**
-* Select any other DLC you need
-* Press **Update**
-
----
-
 ## **Supported DLC**
 
 ### **Expansion Packs**
 
 * EP01 — Get to Work
 * EP02 — Get Together
-* EP03 — City Living ⚠️ *Manual installation required*
+* EP03 — City Living 
 * EP04 — Cats & Dogs
 * EP05 — Seasons
-* EP06 — Get Famous ⚠️ *Manual installation required*
+* EP06 — Get Famous 
 * EP07 — Island Living
 * EP08 — Discover University
 * EP09 — Eco Lifestyle
@@ -172,6 +89,7 @@ The Sims 4
 * EP18 — Businesses and Hobbies
 * EP19 — Enchanted by Nature
 * EP20 — Adventure Awaits
+* EP21 — Royalty & Legacy
 
 ---
 
@@ -266,6 +184,8 @@ The Sims 4
 * SP72 — Essential Glam Kit
 * SP73 — Modern Retreat Kit
 * SP74 — Garden to Table Kit
+* SP76 — Silver Screen Style Kit
+* SP77 — Tea Time Solarium Kit
 * SP81 — Prairie Dreams Kit
 
 ---
@@ -320,7 +240,7 @@ The Sims 4
 
 The only legitimate sources are:
 
-* **Official GitHub repository:** [github.com/l1ntol/lunia-dlc](https://github.com/l1ntol/linua-updater)
+* **Official GitHub repository:** [github.com/l1ntol/linua-updater](https://github.com/l1ntol/linua-updater)
 * **Official Releases page:** [Releases](https://github.com/l1ntol/linua-updater/releases)
 
 Do **NOT** download this tool from any third-party websites or repacks.
