@@ -1,3 +1,6 @@
 /.idea/
 /dist/
 /build/
+*.exe
+*.pyc
+__pycache__/

@@ -16,7 +16,7 @@ import socket
 import ctypes
 import traceback
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, CancelledError
 from pathlib import Path
 from datetime import datetime
 from collections import deque
@@ -33,7 +33,7 @@ try:
 except ImportError:
     pass
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, pyqtSlot, QObject
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, pyqtSlot, QObject, QStandardPaths
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QDialog, QFileDialog,
     QLabel, QPushButton, QTextEdit, QVBoxLayout,
@@ -44,7 +44,26 @@ from PyQt6.QtGui import QFont, QPalette, QColor
 
 APP_VERSION = "4.3.0"
 GITHUB_REPO = "l1ntol/linua-updater"
-VERSION_CHECK_URL = f"https://raw.githubusercontent.com/l1ntol/linua-updater/main/version.json"
+DEFAULT_VERSION_CHECK_URL = "https://raw.githubusercontent.com/l1ntol/linua-updater/main/version.json"
+DEFAULT_REGION_API = "https://ipapi.co/json/"
+DEFAULT_PROXY_PORTS = [1080, 8080, 7890, 10808, 8888, 1087]
+DEFAULT_MIRRORS = {
+    "github.com": "https://gh-proxy.com/https://github.com",
+    "raw.githubusercontent.com": "https://gh-proxy.com/https://raw.githubusercontent.com",
+}
+
+def _reveal_in_explorer(path):
+    """Cross-platform helper to reveal a file/folder in the file explorer"""
+    try:
+        directory = path.parent if path.is_file() else path
+        if sys.platform == "win32":
+            os.system(f'explorer /select, "{path}"')
+        elif sys.platform == "darwin":
+            os.system(f'open -R "{path}"')
+        else:
+            os.system(f'xdg-open "{directory}"')
+    except Exception:
+        pass
 
 class ImprovedLogger:
     def __init__(self, widget=None):
@@ -96,21 +115,40 @@ class ImprovedLogger:
             self.widget.append(line)
             self.widget.ensureCursorVisible()
     
-    def export_logs(self):
-        """Export logs to desktop"""
+    def export_logs(self, target_path=None):
+        """Export logs to a robust default location."""
         try:
             log_dir = Path.home() / "AppData" / "Local" / "LinuaUpdater" / "logs"
             log_file = log_dir / "updater.log"
             
-            if log_file.exists():
-                desktop = Path.home() / "Desktop"
+            if not log_file.exists():
+                return False, "No log file found"
+            
+            # Resolve target path with fallbacks
+            if target_path is None:
+                # 1. Real Desktop via QStandardPaths (returns str; may be empty)
+                desktop_str = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
+                desktop = Path(desktop_str) if desktop_str else Path.home()
+                if not desktop.exists():
+                    # 2. Fallback to home directory
+                    desktop = Path.home()
+                # 3. Final fallback to application log directory
+                if not desktop.exists():
+                    desktop = log_dir
+                
                 export_name = f"LinuaUpdater_Log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
                 export_path = desktop / export_name
-                
-                shutil.copy(log_file, export_path)
-                return True, str(export_path)
             else:
-                return False, "No log file found"
+                export_path = Path(target_path)
+            
+            # Create parent directory
+            export_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            shutil.copy(log_file, export_path)
+            
+            # Reveal file in file explorer
+            _reveal_in_explorer(export_path)
+            return True, str(export_path)
         except Exception as e:
             return False, str(e)
 
@@ -143,6 +181,7 @@ class SimpleDetailWidget(QLabel):
 
 class InstallationStats:
     def __init__(self):
+        self.lock = threading.Lock()
         self.start_time = None
         self.end_time = None
         self.downloads = {}
@@ -155,39 +194,44 @@ class InstallationStats:
     
     def record_download(self, dlc_id, size_bytes, duration_sec):
         speed_mbps = (size_bytes / (1024 * 1024)) / duration_sec if duration_sec > 0 else 0
-        self.downloads[dlc_id] = {'size_mb': size_bytes / (1024 * 1024), 'duration_sec': duration_sec, 'speed_mbps': speed_mbps}
-        self.total_bytes += size_bytes
-        self.total_time += duration_sec
+        with self.lock:
+            self.downloads[dlc_id] = {'size_mb': size_bytes / (1024 * 1024), 'duration_sec': duration_sec, 'speed_mbps': speed_mbps}
+            self.total_bytes += size_bytes
+            self.total_time += duration_sec
     
     def record_error(self, dlc_id, error_msg):
-        self.errors.append({'dlc_id': dlc_id, 'error': error_msg, 'timestamp': datetime.now().isoformat()})
+        with self.lock:
+            self.errors.append({'dlc_id': dlc_id, 'error': error_msg, 'timestamp': datetime.now().isoformat()})
     
     def finish(self):
-        self.end_time = time.time()
+        with self.lock:
+            self.end_time = time.time()
     
     def get_summary(self):
-        if not self.start_time or not self.end_time:
-            return None
-        total_duration = self.end_time - self.start_time
-        avg_speed = (self.total_bytes / (1024 * 1024)) / self.total_time if self.total_time > 0 else 0
-        return {
-            'total_dlc': len(self.downloads),
-            'total_size_mb': self.total_bytes / (1024 * 1024),
-            'total_duration_sec': total_duration,
-            'avg_speed_mbps': avg_speed,
-            'successful': len(self.downloads),
-            'failed': len(self.errors),
-            'errors': self.errors
-        }
+        with self.lock:
+            if not self.start_time or not self.end_time:
+                return None
+            total_duration = self.end_time - self.start_time
+            avg_speed = (self.total_bytes / (1024 * 1024)) / self.total_time if self.total_time > 0 else 0
+            return {
+                'total_dlc': len(self.downloads),
+                'total_size_mb': self.total_bytes / (1024 * 1024),
+                'total_duration_sec': total_duration,
+                'avg_speed_mbps': avg_speed,
+                'successful': len(self.downloads),
+                'failed': len(self.errors),
+                'errors': self.errors
+            }
 
 class UpdateChecker(QObject):
     update_available = pyqtSignal(str, str)
     no_update = pyqtSignal()
     check_failed = pyqtSignal(str)
     
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, version_url=None):
         super().__init__()
         self.logger = logger
+        self.version_url = version_url or DEFAULT_VERSION_CHECK_URL
         self.cache_file = Path.home() / "AppData" / "Local" / "LinuaUpdater" / "update_cache.json"
         self.cache_duration = 129600  # 36 hours in seconds
     
@@ -243,7 +287,7 @@ class UpdateChecker(QObject):
             
             # Perform actual check
             self.log("Checking for updates...", "INFO")
-            response = requests.get(VERSION_CHECK_URL, timeout=10)
+            response = requests.get(self.version_url, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
@@ -340,36 +384,6 @@ class CompletionDialog(QDialog):
     def apply_theme(self):
         self.setStyleSheet("QDialog { background-color: #1e1e1e; }")
 
-class MetadataCache:
-    def __init__(self):
-        cache_dir = Path.home() / "AppData" / "Local" / "LinuaUpdater"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache_file = cache_dir / "metadata_cache.json"
-        self.cache = self._load()
-    
-    def _load(self):
-        if self.cache_file.exists():
-            try:
-                with open(self.cache_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except:
-                return {}
-        return {}
-    
-    def get(self, dlc_id):
-        return self.cache.get(dlc_id)
-    
-    def set(self, dlc_id, metadata):
-        self.cache[dlc_id] = {'metadata': metadata, 'cached_at': datetime.now().isoformat()}
-        self._save()
-    
-    def _save(self):
-        try:
-            with open(self.cache_file, 'w', encoding='utf-8') as f:
-                json.dump(self.cache, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Cache save error: {e}")
-
 class DownloadQueue:
     def __init__(self):
         queue_dir = Path.home() / "AppData" / "Local" / "LinuaUpdater"
@@ -403,6 +417,10 @@ class DownloadQueue:
     def get_incomplete(self):
         return {k: v for k, v in self.queue.items() if v.get('progress', 0) < 100}
     
+    def clear_all(self):
+        self.queue = {}
+        self._save()
+    
     def _save(self):
         try:
             with open(self.queue_file, 'w', encoding='utf-8') as f:
@@ -423,13 +441,14 @@ class DownloadState:
     def __init__(self):
         self.state_file = Path.home() / "AppData" / "Local" / "LinuaUpdater" / "download_state.json"
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
-    def save_state(self, dlc_ids, completed, failed):
+    def save_state(self, dlc_ids, completed, failed, game_path=None):
         """Save current download state"""
         state = {
             'timestamp': time.time(),
             'total': dlc_ids,
             'completed': completed,
             'failed': failed,
+            'game_path': game_path,
             'remaining': [dlc for dlc in dlc_ids if dlc not in completed and dlc not in failed]
         }
         try:
@@ -458,7 +477,6 @@ class DownloadState:
                 self.state_file.unlink()
         except:
             pass
-# Modified InstallWorker to support pause/resume
 
 
 class SingleInstanceLock:
@@ -545,8 +563,10 @@ class AdminElevator:
             return False
 
 class NetworkDiagnostics:
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, region_api=None, proxy_ports=None):
         self.logger = logger
+        self.region_api = region_api or DEFAULT_REGION_API
+        self.proxy_ports = proxy_ports if proxy_ports else list(DEFAULT_PROXY_PORTS)
         self.can_reach_github = False
         self.proxy_needed = False
         self.working_proxies = []
@@ -559,7 +579,7 @@ class NetworkDiagnostics:
     
     def detect_region(self):
         try:
-            response = requests.get("https://ipapi.co/json/", timeout=5)
+            response = requests.get(self.region_api, timeout=5)
             data = response.json()
             country_code = data.get('country_code', '')
             if country_code in ['RU', 'UA', 'BY']:
@@ -579,7 +599,7 @@ class NetworkDiagnostics:
     def test_proxy(self, proxy_dict):
         try:
             start = time.time()
-            response = requests.get("https://github.com", proxies=proxy_dict, timeout=10, verify=False)
+            response = requests.get("https://github.com", proxies=proxy_dict, timeout=10, verify=True)
             elapsed = (time.time() - start) * 1000
             return response.status_code < 400, elapsed
         except:
@@ -599,14 +619,10 @@ class NetworkDiagnostics:
         self.log("Network check: blocked, searching for proxy...")
         self.proxy_needed = True
         
-        test_proxies = [
-            {"http": "socks5://127.0.0.1:1080", "https": "socks5://127.0.0.1:1080"},
-            {"http": "http://127.0.0.1:8080", "https": "http://127.0.0.1:8080"},
-            {"http": "socks5://127.0.0.1:7890", "https": "socks5://127.0.0.1:7890"},
-            {"http": "socks5://127.0.0.1:10808", "https": "socks5://127.0.0.1:10808"},
-            {"http": "http://127.0.0.1:8888", "https": "http://127.0.0.1:8888"},
-            {"http": "http://127.0.0.1:1087", "https": "http://127.0.0.1:1087"},
-        ]
+        test_proxies = []
+        for port in self.proxy_ports:
+            scheme = "socks5" if port in (1080, 7890, 10808) else "http"
+            test_proxies.append({"http": f"{scheme}://127.0.0.1:{port}", "https": f"{scheme}://127.0.0.1:{port}"})
         
         for proxy in test_proxies:
             is_working, speed = self.test_proxy(proxy)
@@ -630,12 +646,18 @@ class NetworkDiagnostics:
 
 
 class SmartDownloader:
-    def __init__(self, logger, diagnostics=None):
+    def __init__(self, logger, diagnostics=None, use_proxy=True, resume=True, cleanup=True, mirrors=None):
         self.logger = logger
         self.diagnostics = diagnostics
+        self.mirrors = mirrors if mirrors else dict(DEFAULT_MIRRORS)
+        self.use_proxy = use_proxy
+        self.resume = resume
+        self.cleanup = cleanup
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': 'Linua-Updater/4.2'})
         self._cancelled = False
+        self._paused = False
+        self._pause_cond = threading.Condition()
         self._progress_callback = None
         self.min_speed_threshold = 50 * 1024  # 50 KB/s minimum speed
         self.speed_check_duration = 10  # Check speed after 10 seconds
@@ -651,6 +673,18 @@ class SmartDownloader:
     
     def cancel(self):
         self._cancelled = True
+        with self._pause_cond:
+            self._paused = False
+            self._pause_cond.notify_all()
+    
+    def pause(self):
+        with self._pause_cond:
+            self._paused = True
+    
+    def resume(self):
+        with self._pause_cond:
+            self._paused = False
+            self._pause_cond.notify_all()
     
     def download(self, url, out_path, dlc_name=None, resume=False, expected_size=None):
         display = dlc_name or url
@@ -665,14 +699,14 @@ class SmartDownloader:
         if success:
             return True, "OK"
         
-        if self.diagnostics and self.diagnostics.working_proxies:
+        if self.diagnostics and self.diagnostics.working_proxies and self.use_proxy:
             for proxy in self.diagnostics.working_proxies:
                 self.set_proxy(proxy)
                 success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
                 if success:
                     return True, "Downloaded via proxy"
         
-        mirrors = {"github.com": "mirror.ghproxy.com/https://github.com", "raw.githubusercontent.com": "raw.fastgit.org"}
+        mirrors = self.mirrors
         for domain, mirror in mirrors.items():
             if domain in url:
                 mirror_url = url.replace(domain, mirror)
@@ -707,7 +741,7 @@ class SmartDownloader:
             headers = {}
             if start_byte > 0:
                 headers['Range'] = f'bytes={start_byte}-'
-            with self.session.get(url, stream=True, timeout=30, verify=False, headers=headers) as r:
+            with self.session.get(url, stream=True, timeout=30, verify=True, headers=headers) as r:
                 r.raise_for_status()
                 
                 # Use expected_size if Content-Length is not available
@@ -727,6 +761,12 @@ class SmartDownloader:
                     last_check_bytes = downloaded
                     
                     for chunk in r.iter_content(chunk_size=256*1024):
+                        if self._cancelled:
+                            return False, "Cancelled"
+                        if self._paused:
+                            with self._pause_cond:
+                                while self._paused and not self._cancelled:
+                                    self._pause_cond.wait(timeout=0.5)
                         if self._cancelled:
                             return False, "Cancelled"
                         if chunk:
@@ -834,9 +874,23 @@ class Extractor:
                 bad_file = z.testzip()
                 if bad_file:
                     return False, f"Corrupted file in archive: {bad_file}"
-                total = len(z.infolist())
+                base_dir = os.path.abspath(out_dir)
                 for member in z.infolist():
-                    z.extract(member, out_dir)
+                    name = member.filename.replace('\\', '/').lstrip('/')
+                    if os.path.isabs(name) or name[:2].isalpha() and name[2:3] in (':',):
+                        return False, f"Unsafe path in archive: {name}"
+                    norm = os.path.normpath(name)
+                    if norm == os.pardir or norm.startswith(os.pardir + os.sep):
+                        return False, f"Unsafe path in archive: {name}"
+                    target = os.path.abspath(os.path.join(base_dir, norm))
+                    if target != base_dir and not target.startswith(base_dir + os.sep):
+                        return False, f"Unsafe path in archive: {name}"
+                    if member.is_dir():
+                        os.makedirs(target, exist_ok=True)
+                    else:
+                        os.makedirs(os.path.dirname(target), exist_ok=True)
+                        with z.open(member) as src, open(target, 'wb') as dst:
+                            shutil.copyfileobj(src, dst)
             return True, "OK"
         except zipfile.BadZipFile:
             return False, "Invalid or corrupted ZIP file"
@@ -867,21 +921,29 @@ class ParallelInstallManager:
         self._cancelled = False
         self._download_progress = {}
         self._overall_progress_callback = None
+        self._lock = threading.Lock()
+        self.total_count = 0
+    
+    def initialize(self, dlc_ids):
+        with self._lock:
+            self._download_progress = {dlc_id: {'progress': 0.0, 'downloaded': 0, 'total': 0} for dlc_id in dlc_ids}
+            self.total_count = len(dlc_ids)
     
     def set_overall_progress_callback(self, callback):
         self._overall_progress_callback = callback
     
     def update_download_progress(self, dlc_id, progress, downloaded, total):
-        self._download_progress[dlc_id] = {'progress': progress, 'downloaded': downloaded, 'total': total}
-        if self._overall_progress_callback:
+        with self._lock:
+            self._download_progress[dlc_id] = {'progress': progress, 'downloaded': downloaded, 'total': total}
             total_progress = self._calculate_overall_progress()
+        if self._overall_progress_callback:
             self._overall_progress_callback(total_progress)
     
     def _calculate_overall_progress(self):
         if not self._download_progress:
             return 0
         total_progress = sum(d['progress'] for d in self._download_progress.values())
-        count = len(self._download_progress)
+        count = self.total_count if self.total_count > 0 else len(self._download_progress)
         return total_progress / count if count > 0 else 0
     
     def cancel_all(self):
@@ -917,12 +979,12 @@ class SingleDLCInstaller:
             
             expected_size = self.info.get("size")  # Get size from database if available
             
-            temp = os.path.join(tempfile.gettempdir(), f"{self.dlc}_{int(time.time())}.zip")
+            temp = os.path.join(tempfile.gettempdir(), f"{self.dlc}_{int(time.time())}_{threading.get_ident()}.zip")
             self.log("Starting download...")
             dlc_name = f"{self.dlc} - {self.info.get('name', 'Unknown')}"
             if self._progress_callback:
                 self.dl.set_progress_callback(self._progress_callback)
-            ok, reason = self.dl.download(url, temp, dlc_name, resume=True, expected_size=expected_size)
+            ok, reason = self.dl.download(url, temp, dlc_name, resume=self.dl.resume, expected_size=expected_size)
             if not ok:
                 if self.stats:
                     self.stats.record_error(self.dlc, reason)
@@ -950,7 +1012,7 @@ class SingleDLCInstaller:
                 self.stats.record_error(self.dlc, str(e))
             return False, str(e)
         finally:
-            if temp and os.path.exists(temp):
+            if temp and os.path.exists(temp) and self.dl.cleanup:
                 try:
                     os.remove(temp)
                 except:
@@ -988,7 +1050,7 @@ class MultiPartInstaller:
                 return False, "No parts defined"
             total_parts = len(parts)
             for i, url in enumerate(parts):
-                name = f"{self.dlc}.7z.{str(i+1).zfill(3)}"
+                name = f"{self.dlc}_{threading.get_ident()}.7z.{str(i+1).zfill(3)}"
                 out = os.path.join(tempfile.gettempdir(), name)
                 self.log(f"Downloading part {i+1}/{total_parts}...")
                 dlc_name = f"{self.dlc} Part {i+1}"
@@ -999,7 +1061,7 @@ class MultiPartInstaller:
                         total_progress = base + (progress * weight / 100)
                         self._progress_callback(total_progress, downloaded, total)
                     self.dl.set_progress_callback(part_progress)
-                ok, reason = self.dl.download(url, out, dlc_name, resume=True)
+                ok, reason = self.dl.download(url, out, dlc_name, resume=self.dl.resume)
                 if not ok:
                     for f in downloaded_files:
                         try:
@@ -1035,7 +1097,7 @@ class MultiPartInstaller:
         finally:
             for f in downloaded_files:
                 try:
-                    if os.path.exists(f):
+                    if os.path.exists(f) and self.dl.cleanup:
                         os.remove(f)
                 except:
                     pass
@@ -1043,18 +1105,18 @@ class MultiPartInstaller:
 class InstallWorker(QObject):
     progress_updated = pyqtSignal(str, float, int, int)
     overall_progress_updated = pyqtSignal(float)
-    status_updated = pyqtSignal(str, str)
-    download_detail = pyqtSignal(str)
     started = pyqtSignal()
     finished = pyqtSignal()
     result_ready = pyqtSignal(str, bool, str)
     stats_ready = pyqtSignal(dict)
     
-    def __init__(self, dlc_ids, game_path, max_workers=3):
+    def __init__(self, dlc_ids, game_path, settings=None, mirrors=None):
         super().__init__()
         self.dlc_ids = dlc_ids
         self.game_path = game_path
-        self.max_workers = max_workers
+        self.settings = settings or {}
+        self.mirrors = mirrors if mirrors else dict(DEFAULT_MIRRORS)
+        self.max_workers = self.settings.get('max_threads', 3)
         self._cancelled = False
         self.parallel_manager = None
         self.logger = ImprovedLogger()
@@ -1063,6 +1125,13 @@ class InstallWorker(QObject):
         self.extractor = Extractor(self.logger)
         self.stats = InstallationStats()
         self.download_progress = {}
+        self._paused = False
+        self._completed_ids = []
+        self._failed_ids = []
+        self._download_queue = DownloadQueue()
+        self._download_state = DownloadState()
+        self._active_downloaders = []
+        self._active_downloaders_lock = threading.Lock()
     
     def cancel(self):
         self._cancelled = True
@@ -1070,46 +1139,108 @@ class InstallWorker(QObject):
             self.parallel_manager.cancel_all()
         if self.downloader:
             self.downloader.cancel()
+        with self._active_downloaders_lock:
+            active = list(self._active_downloaders)
+        for downloader in active:
+            downloader.cancel()
+            downloader.resume()
+    
+    def pause(self):
+        self._paused = True
+        with self._active_downloaders_lock:
+            active = list(self._active_downloaders)
+        for downloader in active:
+            downloader.pause()
+        self._save_download_state()
+    
+    def resume(self):
+        self._paused = False
+        with self._active_downloaders_lock:
+            active = list(self._active_downloaders)
+        for downloader in active:
+            downloader.resume()
+    
+    def _save_download_state(self):
+        try:
+            for dlc_id in self.dlc_ids:
+                info = self.db.all().get(dlc_id)
+                if info and info.get('url'):
+                    self._download_queue.add(dlc_id, info['url'], self.download_progress.get(dlc_id, 0))
+            self._download_state.save_state(self.dlc_ids, self._completed_ids, self._failed_ids, self.game_path)
+        except Exception as e:
+            self.logger.log(f"Failed to save download state: {e}", "ERROR")
+    
+    def _install_single(self, dlc_id):
+        info = self.db.all().get(dlc_id)
+        if not info:
+            return dlc_id, False, "DLC not found in database"
+        downloader = SmartDownloader(self.logger, use_proxy=self.settings.get('use_proxy', True), resume=self.settings.get('resume_downloads', True), cleanup=self.settings.get('cleanup_temp', True), mirrors=self.mirrors)
+        with self._active_downloaders_lock:
+            self._active_downloaders.append(downloader)
+        try:
+            if "parts" in info and info["parts"]:
+                seven_finder = SevenZipFinder(self.logger)
+                seven_path = seven_finder.find()
+                if not seven_path:
+                    return dlc_id, False, "7-zip not found"
+                installer = MultiPartInstaller(dlc_id, info, self.game_path, downloader, self.extractor, seven_path, self.logger, self.stats)
+            else:
+                installer = SingleDLCInstaller(dlc_id, info, self.game_path, downloader, self.extractor, self.logger, self.stats)
+            installer.set_progress_callback(lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total))
+            success, message = installer.run()
+            return dlc_id, success, message
+        except Exception as e:
+            self.logger.log(f"{dlc_id}: ERROR - {str(e)}", "ERROR")
+            return dlc_id, False, f"Error: {str(e)}"
+        finally:
+            with self._active_downloaders_lock:
+                try:
+                    self._active_downloaders.remove(downloader)
+                except ValueError:
+                    pass
     
     def run(self):
         try:
             self.started.emit()
             self.stats.start()
             total_dlc = len(self.dlc_ids)
-            installed_dlc = set()
             self.overall_progress_updated.emit(0)
             self.parallel_manager = ParallelInstallManager(max_workers=self.max_workers)
+            self.parallel_manager.initialize(self.dlc_ids)
             self.parallel_manager.set_overall_progress_callback(lambda progress: self.overall_progress_updated.emit(progress))
+            futures = {}
             for dlc_id in self.dlc_ids:
                 if self._cancelled:
                     break
-                info = self.db.all().get(dlc_id)
-                if not info:
-                    self.result_ready.emit(dlc_id, False, "DLC not found in database")
-                    continue
                 try:
-                    if "parts" in info and info["parts"]:
-                        seven_finder = SevenZipFinder(self.logger)
-                        seven_path = seven_finder.find()
-                        if not seven_path:
-                            self.result_ready.emit(dlc_id, False, "7-zip not found")
-                            continue
-                        installer = MultiPartInstaller(dlc_id, info, self.game_path, self.downloader, self.extractor, seven_path, self.logger, self.stats)
-                    else:
-                        installer = SingleDLCInstaller(dlc_id, info, self.game_path, self.downloader, self.extractor, self.logger, self.stats)
-                    installer.set_progress_callback(lambda progress, downloaded, total, dlc=dlc_id: self._handle_progress(dlc, progress, downloaded, total))
-                    success, message = installer.run()
-                    if success:
-                        installed_dlc.add(dlc_id)
-                    self.result_ready.emit(dlc_id, success, message)
+                    future = self.parallel_manager.executor.submit(self._install_single, dlc_id)
+                except RuntimeError:
+                    if self._cancelled:
+                        break
+                    raise
+                futures[future] = dlc_id
+            for future in as_completed(futures):
+                dlc_id = futures[future]
+                try:
+                    _, success, message = future.result()
+                except CancelledError:
+                    success, message = False, "Cancelled"
                 except Exception as e:
                     self.logger.log(f"{dlc_id}: ERROR - {str(e)}", "ERROR")
-                    self.result_ready.emit(dlc_id, False, f"Error: {str(e)}")
+                    success, message = False, f"Error: {str(e)}"
+                if success:
+                    self._completed_ids.append(dlc_id)
+                else:
+                    self._failed_ids.append(dlc_id)
+                self.result_ready.emit(dlc_id, success, message)
             self.stats.finish()
             summary = self.stats.get_summary()
             if summary:
                 self.stats_ready.emit(summary)
-            self.overall_progress_updated.emit(100)
+            if not self._cancelled:
+                self.overall_progress_updated.emit(100)
+            self._download_state.clear_state()
+            self._download_queue.clear_all()
             self.finished.emit()
         except Exception as e:
             self.logger.log(f"CRITICAL ERROR: {str(e)}", "ERROR")
@@ -1117,12 +1248,10 @@ class InstallWorker(QObject):
             self.finished.emit()
     
     def _handle_progress(self, dlc_id, progress, downloaded, total):
+        if self.parallel_manager:
+            self.parallel_manager.update_download_progress(dlc_id, progress, downloaded, total)
+        self.download_progress[dlc_id] = progress
         self.progress_updated.emit(dlc_id, progress, downloaded, total)
-        if total > 0:
-            mb_downloaded = downloaded / (1024 * 1024)
-            mb_total = total / (1024 * 1024)
-            detail = f"Downloading {dlc_id}: {progress:.1f}% ({mb_downloaded:.1f}MB/{mb_total:.1f}MB)"
-            self.download_detail.emit(detail)
 
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
@@ -1200,6 +1329,20 @@ class ConfigManager:
     def get_settings(self):
         return self.data.get("settings", {})
     
+    def get_network(self):
+        defaults = {
+            'version_check_url': DEFAULT_VERSION_CHECK_URL,
+            'region_api': DEFAULT_REGION_API,
+            'proxy_ports': list(DEFAULT_PROXY_PORTS),
+            'mirrors': dict(DEFAULT_MIRRORS),
+        }
+        net = self.data.get('network', {}) or {}
+        merged = dict(defaults)
+        for key, value in net.items():
+            if value:
+                merged[key] = value
+        return merged
+    
     def save(self):
         try:
             with open(self.path, "w", encoding="utf-8") as f:
@@ -1208,93 +1351,46 @@ class ConfigManager:
             print(f"Config save failed: {e}")
 
 
-
 # ======================================================================
 # DISK SPACE CHECKER - v4.3.0 Feature
 # ======================================================================
 
+SIZE_ESTIMATES = {
+    "EP01": 1900000000, "EP02": 2100000000, "EP03": 2635798353,
+    "EP04": 2800000000, "EP05": 2200000000, "EP06": 2807534837,
+    "EP07": 2100000000, "EP08": 2300000000, "EP09": 1900000000,
+    "EP10": 2400000000, "EP11": 2200000000, "EP12": 2100000000,
+    "EP13": 2000000000, "EP14": 2300000000, "EP15": 1800000000,
+    "EP16": 1900000000, "EP17": 2400000000, "EP18": 2100000000,
+    "EP19": 1800000000, "EP20": 1900000000, "EP21": 2553349168,
+    "GP01": 800000000, "GP02": 850000000, "GP03": 900000000,
+    "GP04": 1000000000, "GP05": 750000000, "GP06": 1100000000,
+    "GP07": 900000000, "GP08": 1000000000, "GP09": 1200000000,
+    "GP10": 950000000, "GP11": 1000000000, "GP12": 950000000,
+    "SP01": 150000000, "SP02": 100000000, "SP03": 120000000,
+    "SP04": 110000000, "SP05": 130000000, "SP06": 140000000,
+    "SP07": 160000000, "SP08": 100000000, "SP09": 150000000,
+    "SP10": 180000000, "SP11": 120000000, "SP12": 110000000,
+    "SP13": 130000000, "SP14": 100000000, "SP15": 140000000,
+    "SP16": 110000000, "SP17": 120000000, "SP18": 150000000,
+    "SP20": 80000000, "SP21": 70000000, "SP22": 60000000,
+    "SP23": 75000000, "SP24": 65000000, "SP25": 70000000,
+    "SP26": 80000000, "SP28": 75000000, "SP29": 70000000,
+    "SP30": 80000000,
+}
+
+
 class DiskSpaceChecker:
     """Check and calculate disk space requirements"""
-    
-    # Approximate sizes in bytes (will be updated with real data)
-    DLC_SIZES = {
-        "EP01": 1900000000,  # ~1.9 GB
-        "EP02": 2100000000,  # ~2.1 GB
-        "EP03": 2635798353,  # Known from database
-        "EP04": 2800000000,
-        "EP05": 2200000000,
-        "EP06": 2807534837,  # Known from database
-        "EP07": 2100000000,
-        "EP08": 2300000000,
-        "EP09": 1900000000,
-        "EP10": 2400000000,
-        "EP11": 2200000000,
-        "EP12": 2100000000,
-        "EP13": 2000000000,
-        "EP14": 2300000000,
-        "EP15": 1800000000,
-        "EP16": 1900000000,
-        "EP17": 2400000000,
-        "EP18": 2100000000,
-        "EP19": 1800000000,
-        "EP20": 1900000000,
-        "EP21": 2553349168,  # Known from database
-        # Game Packs ~800MB-1.5GB
-        "GP01": 800000000,
-        "GP02": 850000000,
-        "GP03": 900000000,
-        "GP04": 1000000000,
-        "GP05": 750000000,
-        "GP06": 1100000000,
-        "GP07": 900000000,
-        "GP08": 1000000000,
-        "GP09": 1200000000,
-        "GP10": 950000000,
-        "GP11": 1000000000,
-        "GP12": 950000000,
-        # Stuff Packs ~100-300MB
-        "SP01": 150000000,
-        "SP02": 100000000,
-        "SP03": 120000000,
-        "SP04": 110000000,
-        "SP05": 130000000,
-        "SP06": 140000000,
-        "SP07": 160000000,
-        "SP08": 100000000,
-        "SP09": 150000000,
-        "SP10": 180000000,
-        "SP11": 120000000,
-        "SP12": 110000000,
-        "SP13": 130000000,
-        "SP14": 100000000,
-        "SP15": 140000000,
-        "SP16": 110000000,
-        "SP17": 120000000,
-        "SP18": 150000000,
-        # Kits ~50-100MB
-        "SP20": 80000000,
-        "SP21": 70000000,
-        "SP22": 60000000,
-        "SP23": 75000000,
-        "SP24": 65000000,
-        "SP25": 70000000,
-        "SP26": 80000000,
-        "SP28": 75000000,
-        "SP29": 70000000,
-        "SP30": 80000000,
-    }
     
     @staticmethod
     def get_dlc_size(dlc_id):
         """Get estimated size for a DLC"""
-        # Try to get exact size from database first
         db = DLCDatabase()
         info = db.all().get(dlc_id)
-        if info and 'size' in info:
+        if info and info.get('size'):
             return info['size']
-        
-        # Fall back to estimates
-        return DiskSpaceChecker.DLC_SIZES.get(dlc_id, 500000000)  # Default 500MB
+        return SIZE_ESTIMATES.get(dlc_id, 500000000)
     
     @staticmethod
     def calculate_required_space(dlc_ids):
@@ -1542,6 +1638,9 @@ class DLCDatabase:
             "SP77": {"name": "SP77", "url": "https://penis.nicole-popova66.workers.dev/SP77.zip"},
             "SP81": {"name": "SP81", "url": "https://penis.nicole-popova66.workers.dev/SP81.zip"},
         }
+        for dlc_id, info in self.dlc.items():
+            if dlc_id in SIZE_ESTIMATES:
+                info['size'] = SIZE_ESTIMATES[dlc_id]
 
     def all(self):
         return self.dlc
@@ -1667,7 +1766,6 @@ class DLCSelector(QDialog):
                 item.widget().deleteLater()
         self.cbs.clear()
         
-        # FIXED: Removed EP03/EP06 exclusion
         available = [(dlc_id, info) for dlc_id, info in db.items() if dlc_id.upper() not in installed]
         
         if not available:
@@ -1708,9 +1806,7 @@ class DLCSelector(QDialog):
             self.install_btn.setEnabled(False)
     
     def get(self):
-        # FIXED: Removed EP03/EP06 exclusion
         return [dlc for dlc, cb in self.cbs.items() if cb.isChecked() and cb.isEnabled()]
-
 
 
 # ======================================================================
@@ -1893,6 +1989,19 @@ class UninstallWorker(QObject):
             return False, str(e)
 
 
+class DiagnosticsWorker(QObject):
+    result_ready = pyqtSignal(object)
+
+    def __init__(self, network=None):
+        super().__init__()
+        self.network = network or {}
+
+    def run(self):
+        tool = NetworkDiagnostics(None, region_api=self.network.get('region_api'), proxy_ports=self.network.get('proxy_ports'))
+        tool.diagnose()
+        self.result_ready.emit(tool)
+
+
 class LinuaUI(QMainWindow):
     def __init__(self, config, db):
         super().__init__()
@@ -1909,11 +2018,14 @@ class LinuaUI(QMainWindow):
         self.extractor = Extractor(self.logger)
         self.install_thread = None
         self.install_worker = None
+        self._update_thread = None
+        self._diag_thread = None
         self.progress_total = 0
         self.progress_done = 0
         self.successful_count = 0
         self.failed_count = 0
         self.settings = self.config.get_settings()
+        self.network = self.config.get_network()
         self.dlc_check_timer = QTimer()
         self.dlc_check_timer.timeout.connect(self.update_dlc_status)
         saved = self.config.get("game_path", "")
@@ -1924,16 +2036,22 @@ class LinuaUI(QMainWindow):
         QTimer.singleShot(500, self.auto_detect)
         self.dlc_check_timer.start(3000)
         QTimer.singleShot(1000, self.update_dlc_status)
+        QTimer.singleShot(600, self.check_saved_download_state)
     
     def check_for_updates(self):
         """Check for updates on startup"""
-        self.update_checker = UpdateChecker(self.logger)  # Pass logger
+        self.logger.log("Checking for updates...")
+        self.update_checker = UpdateChecker(None, version_url=self.network['version_check_url'])  # logger=None: worker logs via signals
         self.update_checker.update_available.connect(self.on_update_available)
         self.update_checker.no_update.connect(lambda: self.logger.log("No updates available"))
         self.update_checker.check_failed.connect(
             lambda err: self.logger.log(f"Update check failed: {err}", "WARNING")
         )
-        QTimer.singleShot(0, self.update_checker.check_for_updates)
+        self._update_thread = QThread()
+        self.update_checker.moveToThread(self._update_thread)
+        self._update_thread.started.connect(self.update_checker.check_for_updates)
+        self._update_thread.finished.connect(self._update_thread.deleteLater)
+        self._update_thread.start()
     
     def on_update_available(self, version, url):
         """Handle update notification"""
@@ -2028,10 +2146,10 @@ class LinuaUI(QMainWindow):
         self.setStyleSheet(css)
     
     def export_logs(self):
-        """Export logs to desktop"""
+        """Export logs to the default location and reveal it."""
         success, result = self.logger.export_logs()
         if success:
-            QMessageBox.information(self, "Logs Exported", f"Logs exported to:\n{result}")
+            self.logger.log(f"Logs exported to: {result}", "INFO")
         else:
             QMessageBox.warning(self, "Export Failed", f"Failed to export logs:\n{result}")
     
@@ -2048,7 +2166,6 @@ class LinuaUI(QMainWindow):
             return
         installed = self.detect_installed(path)
         total_dlc = len(self.db.all())
-        # FIXED: Removed EP03/EP06 exclusion
         available = [k for k in self.db.all().keys() if k.upper() not in installed]
         if len(available) == 0:
             self.dlc_status.setText(f"ALL {total_dlc} DLC INSTALLED")
@@ -2072,24 +2189,29 @@ class LinuaUI(QMainWindow):
                 with open(cache_file, 'r') as f:
                     cache = json.load(f)
                 if time.time() - cache.get('timestamp', 0) < cache_duration:
-                    tool = NetworkDiagnostics(self.logger)
+                    tool = NetworkDiagnostics(self.logger, region_api=self.network['region_api'], proxy_ports=self.network['proxy_ports'])
                     tool.can_reach_github = cache.get('can_reach_github', True)
                     tool.proxy_needed = cache.get('proxy_needed', False)
                     tool.recommended_solution = cache.get('recommended_solution', 'direct')
                     self.logger.log(f"Network: cached diagnostics ({int((time.time() - cache['timestamp']) / 60)} min old)", "DEBUG")
                     self.diagnostics = tool
-                    self.downloader = SmartDownloader(self.logger, self.diagnostics)
+                    self.downloader = SmartDownloader(self.logger, self.diagnostics, mirrors=self.network['mirrors'])
                     return
         except:
             pass
         
-        # Run fresh diagnostics
-        tool = NetworkDiagnostics(self.logger)
-        tool.diagnose()
+        self._diag_worker = DiagnosticsWorker(self.network)
+        self._diag_worker.result_ready.connect(self._apply_diagnostics)
+        self._diag_thread = QThread()
+        self._diag_worker.moveToThread(self._diag_thread)
+        self._diag_thread.started.connect(self._diag_worker.run)
+        self._diag_thread.finished.connect(self._diag_thread.deleteLater)
+        self._diag_thread.start()
+    
+    def _apply_diagnostics(self, tool):
         self.diagnostics = tool
-        self.downloader = SmartDownloader(self.logger, self.diagnostics)
-        
-        # Save to cache
+        self.downloader = SmartDownloader(self.logger, self.diagnostics, mirrors=self.network['mirrors'])
+        cache_file = Path.home() / "AppData" / "Local" / "LinuaUpdater" / "diag_cache.json"
         try:
             cache_file.parent.mkdir(parents=True, exist_ok=True)
             with open(cache_file, 'w') as f:
@@ -2101,6 +2223,12 @@ class LinuaUI(QMainWindow):
                 }, f)
         except:
             pass
+        if tool.recommended_solution == "direct":
+            self.logger.log("Network check: OK (direct connection)")
+        elif tool.recommended_solution == "proxy":
+            self.logger.log(f"Network: using proxy ({len(tool.working_proxies)} found)")
+        else:
+            self.logger.log("Network: blocked. Install Cloudflare WARP: https://1.1.1.1/", "WARNING")
     
     def show_settings(self):
         dlg = SettingsDialog(self)
@@ -2160,7 +2288,6 @@ class LinuaUI(QMainWindow):
         path = self.path_input.text().strip()
         if path and os.path.exists(path):
             installed = self.detect_installed(path)
-            # FIXED: Use self.db.all().items() instead of db.items()
             available = [(dlc_id, info) for dlc_id, info in self.db.all().items() if dlc_id.upper() not in installed]
             if not available:
                 self.logger.log("All DLC already installed!")
@@ -2194,16 +2321,6 @@ class LinuaUI(QMainWindow):
                 return
         else:
             self.logger.log("Game executable found")
-        try:
-            total, used, free = shutil.disk_usage(path)
-            free_gb = free / (1024**3)
-            if free_gb < 15:
-                self.logger.log(f"Low disk space: {free_gb:.1f} GB", "WARNING")
-                QMessageBox.warning(self, "Low Disk Space", f"Only {free_gb:.1f} GB free space available.\nAt least 15 GB recommended for DLC installation.")
-            else:
-                self.logger.log(f"Free space: {free_gb:.1f} GB")
-        except:
-            pass
         installed = self.detect_installed(path)
         dlg = DLCSelector(self)
         dlg.populate(self.db.all(), installed)
@@ -2246,13 +2363,11 @@ class LinuaUI(QMainWindow):
         self.cancel_btn.setEnabled(True)
         self.settings_btn.setEnabled(False)
         self.export_logs_btn.setEnabled(False)
-        self.install_worker = InstallWorker(selected, path, max_workers=self.settings.get('max_threads', 3))
+        self.install_worker = InstallWorker(selected, path, self.settings, mirrors=self.network['mirrors'])
         self.install_thread = QThread()
         self.install_worker.moveToThread(self.install_thread)
         self.install_worker.progress_updated.connect(self.on_progress_updated)
         self.install_worker.overall_progress_updated.connect(self.on_overall_progress_updated)
-        self.install_worker.status_updated.connect(self.on_status_updated)
-        self.install_worker.download_detail.connect(self.on_download_detail)
         self.install_worker.result_ready.connect(self.on_install_result)
         self.install_worker.started.connect(self.on_install_started)
         self.install_worker.finished.connect(self.on_install_finished)
@@ -2263,23 +2378,12 @@ class LinuaUI(QMainWindow):
     
     @pyqtSlot(str, float, int, int)
     def on_progress_updated(self, dlc_id, progress, downloaded, total):
-        self.download_progress.setValue(int(progress))
-        if not self.download_progress.isVisible():
-            self.download_progress.setVisible(True)
         if total > 0:
             self.download_detail.update_progress(dlc_id, progress, downloaded, total)
     
     @pyqtSlot(float)
     def on_overall_progress_updated(self, progress):
-        pass
-    
-    @pyqtSlot(str, str)
-    def on_status_updated(self, dlc_id, status):
-        pass
-    
-    @pyqtSlot(str)
-    def on_download_detail(self, detail):
-        pass
+        self.download_progress.setValue(int(progress))
     
     @pyqtSlot(str, bool, str)
     def on_install_result(self, dlc_id, success, message):
@@ -2355,6 +2459,10 @@ class LinuaUI(QMainWindow):
         self.uninstall_btn.setEnabled(True)
         self.pause_btn.setVisible(False)
         self.pause_btn.setEnabled(False)
+        if self.pause_btn.text() == "Resume":
+            self.pause_btn.clicked.disconnect()
+            self.pause_btn.clicked.connect(self.on_pause)
+            self.pause_btn.setText("Pause")
         self.cancel_btn.setVisible(False)
         self.cancel_btn.setEnabled(False)
         self.settings_btn.setEnabled(True)
@@ -2439,21 +2547,57 @@ class LinuaUI(QMainWindow):
     
     def on_pause(self):
         """Handle pause button click"""
-        if self.install_worker and hasattr(self.install_worker, 'pause'):
-            self.install_worker.pause()
-            self.pause_btn.setText("Resume")
-            self.pause_btn.clicked.disconnect()
-            self.pause_btn.clicked.connect(self.on_resume)
-            self.logger.log("Installation paused", "WARNING")
+        if not self.install_worker:
+            return
+        self.install_worker.pause()
+        self.pause_btn.setText("Resume")
+        self.pause_btn.clicked.disconnect()
+        self.pause_btn.clicked.connect(self.on_resume)
+        self.cancel_btn.setEnabled(True)
+        self.logger.log("Installation paused", "WARNING")
     
     def on_resume(self):
         """Handle resume button click"""
-        if self.install_worker and hasattr(self.install_worker, 'resume'):
-            self.install_worker.resume()
-            self.pause_btn.setText("Pause")
-            self.pause_btn.clicked.disconnect()
-            self.pause_btn.clicked.connect(self.on_pause)
-            self.logger.log("Resuming installation...", "INFO")
+        if not self.install_worker:
+            return
+        self.install_worker.resume()
+        self.pause_btn.setText("Pause")
+        self.pause_btn.clicked.disconnect()
+        self.pause_btn.clicked.connect(self.on_pause)
+        self.logger.log("Resuming installation...", "INFO")
+    
+    def check_saved_download_state(self):
+        if self.is_closing or self.install_worker:
+            return
+        state = DownloadState().load_state()
+        if not state:
+            return
+        if not self.settings.get('resume_downloads', True):
+            DownloadState().clear_state()
+            return
+        remaining = state.get('remaining') or []
+        path = state.get('game_path') or self.config.get('game_path', '')
+        if not path or not os.path.exists(path) or not remaining:
+            DownloadState().clear_state()
+            return
+        available = [k for k in remaining if k.upper() not in self.detect_installed(path)]
+        if not available:
+            self.logger.log("All saved DLC already installed", "INFO")
+            DownloadState().clear_state()
+            return
+        reply = QMessageBox.question(
+            self,
+            "Resume Install?",
+            f"Found an unfinished installation ({len(available)} DLC remaining).\n\nResume it now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.path_input.setText(path)
+            self.config.set("game_path", path)
+            self.start_parallel_install(available, path)
+        else:
+            DownloadState().clear_state()
     
     def closeEvent(self, event):
         self.is_closing = True
