@@ -187,6 +187,21 @@ ruff check linua_updater/                            # lint
 
 Tests cover the non-GUI core logic (catalog size, zip-slip rejection, disk-space math, config/persistence round-trips, semver comparison); PyQt6 is only required to import/run the UI and worker modules.
 
+### Developer scripts
+
+The `scripts/` directory contains self-contained helpers that operate on the repo's own `.venv` (auto-detected relative to the script location, so they work from any working directory). Every script ships in a POSIX shell (`*.sh`, Linux/Git Bash) and a Windows cmd (`*.bat`) variant; the bash variants are `set -euo pipefail`-safe.
+
+| Script | Purpose |
+| --- | --- |
+| `setup.sh` / `setup.bat` | Creates `.venv` if missing (idempotent), upgrades pip, installs the package with dev extras (`pip install -e ".[dev]"`). |
+| `build.sh` / `build.bat` | Activates `.venv`, (re)installs dependencies, runs `pyinstaller --noconfirm build.spec`, and prints the produced artifact. |
+| `check.sh` / `check.bat` | Activates `.venv`, runs `python -m pytest tests/` then `ruff check linua_updater/`. |
+| `run.sh` / `run.bat` | Activates `.venv` and runs `python -m linua_updater`. On headless Linux (`bash`, no `DISPLAY`/`WAYLAND_DISPLAY`) `run.sh` falls back to `QT_QPA_PLATFORM=offscreen`. |
+
+Alternative to manual activation: `source .venv/bin/activate && python -m linua_updater` (Windows: `.venv\Scripts\activate`).
+
+> **Cross-platform build note:** PyInstaller does not cross-compile. `build.sh`/`build.bat` always produce a binary for the **host** platform only — `dist/Linua-Updater` on Linux and `dist/Linua-Updater.exe` on Windows. To obtain a Windows `.exe` from a Linux machine, run the build on a Windows host (Git Bash) or push a `v*.*.*` tag and download the artifact from the GitHub Actions `windows_build.yml` workflow.
+
 ### CI/CD (GitHub Actions)
 
 Two workflows trigger on `v*.*.*` tags:
