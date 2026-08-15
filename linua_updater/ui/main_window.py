@@ -362,7 +362,7 @@ class LinuaUI(QMainWindow):
             self.logger.log("Network: blocked. Install Cloudflare WARP: https://1.1.1.1/", "WARNING")
 
     def show_settings(self):
-        dlg = SettingsDialog(self)
+        dlg = SettingsDialog(self, db=self.db, logger=self.logger)
         dlg.thread_spin.setValue(self.settings.get('max_threads', 3))
         dlg.proxy_check.setChecked(self.settings.get('use_proxy', True))
         dlg.resume_check.setChecked(self.settings.get('resume_downloads', True))

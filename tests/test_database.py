@@ -175,3 +175,47 @@ def test_cache_without_dlc_key_falls_back(cache_file):
     _write_cache(cache_file, {"version": "1.0"})
     db = DLCDatabase()
     assert len(db.all()) == 109
+
+
+def test_refresh_with_fresh_cache_replaces_it_from_remote(cache_file, monkeypatch):
+    _write_cache(cache_file, _sample_payload())
+    expected = {
+        "version": "9.9.9",
+        "updatedAt": "2026-08-16T00:00:00Z",
+        "dlc": {"EP01": {"name": "Get to Work 2", "url": "https://example.com/EP01_v2.zip"}},
+    }
+    monkeypatch.setattr(
+        "linua_updater.core.database.requests.get",
+        lambda url, timeout=10: FakeResponse(200, json.loads(json.dumps(expected))),
+    )
+    db = DLCDatabase()
+    assert db.source == "cache"
+    assert db.refresh() is True
+    assert db.source == "remote"
+    assert db.all()["EP01"]["name"] == "Get to Work 2"
+    assert db.get_key("version") == "9.9.9"
+    saved = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert saved["database"] == expected
+    assert db.db_url in db.source_description()
+
+
+def test_refresh_failure_removes_cache_and_falls_back(cache_file):
+    _write_cache(cache_file, _sample_payload())
+    db = DLCDatabase()
+    assert db.source == "cache"
+    assert db.refresh() is False
+    assert db.source == "fallback"
+    assert not cache_file.exists()
+    assert len(db.all()) == 109
+    assert "built-in fallback data" in db.source_description()
+
+
+def test_refresh_reapplies_size_enrichment(cache_file, monkeypatch):
+    _write_cache(cache_file, _sample_payload())
+    monkeypatch.setattr(
+        "linua_updater.core.database.requests.get",
+        lambda url, timeout=10: FakeResponse(200, _sample_payload()),
+    )
+    db = DLCDatabase()
+    assert db.refresh() is True
+    assert db.all()["EP01"]["size"] == 1900000000

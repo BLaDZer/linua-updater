@@ -1,4 +1,4 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSlot
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from linua_updater.core.database import DLCDatabase
+from linua_updater.workers.database_refresh_worker import DatabaseRefreshWorker
 
 
 class CompletionDialog(QDialog):
@@ -73,10 +74,14 @@ class CompletionDialog(QDialog):
         self.setStyleSheet("QDialog { background-color: #1e1e1e; }")
 
 class SettingsDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, db=None, logger=None):
         super().__init__(parent)
+        self.db = db
+        self.logger = logger
+        self._db_reset_thread = None
+        self._db_reset_worker = None
         self.setWindowTitle("Settings")
-        self.setFixedSize(400, 300)
+        self.setFixedSize(420, 440)
         self.setup_ui()
         self.apply_dark_theme()
 
@@ -105,6 +110,16 @@ class SettingsDialog(QDialog):
         network_layout.addWidget(self.cleanup_check)
         network_group.setLayout(network_layout)
         layout.addWidget(network_group)
+        db_group = QGroupBox("Database")
+        db_layout = QVBoxLayout()
+        db_hint = QLabel("Delete the cached DLC database and download the latest from the remote source.")
+        db_hint.setWordWrap(True)
+        db_layout.addWidget(db_hint)
+        self.reset_db_btn = QPushButton("Reset database cache")
+        self.reset_db_btn.clicked.connect(self.reset_database_cache)
+        db_layout.addWidget(self.reset_db_btn)
+        db_group.setLayout(db_layout)
+        layout.addWidget(db_group)
         buttons = QHBoxLayout()
         save_btn = QPushButton("Save")
         cancel_btn = QPushButton("Cancel")
@@ -114,6 +129,38 @@ class SettingsDialog(QDialog):
         buttons.addWidget(save_btn)
         buttons.addWidget(cancel_btn)
         layout.addLayout(buttons)
+
+    def reset_database_cache(self):
+        if self._db_reset_thread:
+            return
+        if self.logger:
+            self.logger.log("Database cache reset requested...", "INFO")
+        self.reset_db_btn.setEnabled(False)
+        self.reset_db_btn.setText("Refreshing...")
+        self._db_reset_worker = DatabaseRefreshWorker(self.db)
+        self._db_reset_worker.result_ready.connect(self._on_db_reset_done)
+        self._db_reset_thread = QThread()
+        self._db_reset_worker.moveToThread(self._db_reset_thread)
+        self._db_reset_thread.started.connect(self._db_reset_worker.run)
+        self._db_reset_thread.start()
+
+    @pyqtSlot(bool)
+    def _on_db_reset_done(self, ok):
+        self.reset_db_btn.setText("Reset database cache")
+        self.reset_db_btn.setEnabled(True)
+        if self.logger:
+            if ok:
+                self.logger.log(self.db.source_description(), "INFO")
+            else:
+                self.logger.log("Database cache reset failed: " + self.db.source_description(), "WARNING")
+        if self._db_reset_thread:
+            self._db_reset_thread.quit()
+            self._db_reset_thread.wait()
+            self._db_reset_thread.deleteLater()
+            self._db_reset_thread = None
+        if self._db_reset_worker:
+            self._db_reset_worker.deleteLater()
+            self._db_reset_worker = None
 
     def apply_dark_theme(self):
         self.setStyleSheet("QDialog{background-color:#1e1e1e;}QLabel{color:white;}QGroupBox{color:white;border:1px solid #555;border-radius:5px;margin-top:10px;padding-top:10px;}QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 5px 0 5px;}QSpinBox,QCheckBox{color:white;background-color:#2a2a2a;}")

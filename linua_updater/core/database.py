@@ -30,6 +30,22 @@ class DLCDatabase:
         self.cache_duration = cache_duration if cache_duration is not None else AppPaths.DATABASE_CACHE_DURATION
         self.data = self._load()
         self.dlc = self.data.get("dlc", {})
+        self._apply_sizes()
+
+    def refresh(self):
+        """Invalidate the cache file and reload, re-running the resolution order.
+        Returns True when the payload came from the remote server."""
+        try:
+            if self.cache_file.exists():
+                self.cache_file.unlink()
+        except OSError:
+            pass
+        self.data = self._load()
+        self.dlc = self.data.get("dlc", {})
+        self._apply_sizes()
+        return self.source == "remote"
+
+    def _apply_sizes(self):
         for dlc_id, info in self.dlc.items():
             if dlc_id in SIZE_ESTIMATES:
                 info['size'] = SIZE_ESTIMATES[dlc_id]

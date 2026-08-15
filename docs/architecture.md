@@ -33,7 +33,8 @@ linua_updater/
 ├── persistence/           # DownloadQueue, DownloadState (JSON state files)
 ├── core/                  # DLCDatabase, SmartDownloader, Extractor, GameDetector, NetworkDiagnostics,
 │                          #  ParallelInstallManager, SingleDLCInstaller, MultiPartInstaller, InstallationStats
-├── workers/               # UpdateChecker, InstallWorker, UninstallWorker, DiagnosticsWorker (QObject/QThread)
+├── workers/               # UpdateChecker, InstallWorker, UninstallWorker, DiagnosticsWorker,
+│                          #  DatabaseRefreshWorker (QObject/QThread)
 └── ui/                    # LinuaUI (main window), dialogs, widgets, theme
 ```
 
@@ -46,7 +47,7 @@ The application follows a layered design connected by Qt signals/slots:
 | Layer | Responsibilities | Key Classes |
 | --- | --- | --- |
 | UI | Rendering, user input, feedback | `LinuaUI`, `DLCSelector`, `UninstallDialog`, `SettingsDialog`, `CompletionDialog`, `SpaceWarningDialog` |
-| Worker threads | Long-running work off the UI thread | `InstallWorker`, `UninstallWorker`, `SmartDownloader`, `UpdateChecker`, `DiagnosticsWorker` |
+| Worker threads | Long-running work off the UI thread | `InstallWorker`, `UninstallWorker`, `SmartDownloader`, `UpdateChecker`, `DiagnosticsWorker`, `DatabaseRefreshWorker` |
 | Services | Domain logic: detection, networking, extraction | `GameDetector`, `NetworkDiagnostics`, `Extractor`, `DLCDatabase` |
 | Utilities | Cross-cutting concerns | `ConfigManager`, `SingleInstanceLock`, `AdminElevator`, `SevenZipFinder`, `DiskSpaceChecker`, `ImprovedLogger` |
 | Persistence | Local JSON state under the platform data dir (below) | `ConfigManager`, `DownloadQueue`, `DownloadState`, `UpdateChecker` (cache) |
@@ -89,7 +90,7 @@ Signal/slot flow:
 | --- | --- |
 | `DLCSelector` | Checkbox list of available DLC with "select all"; filters out already-installed packs |
 | `UninstallDialog` | Checkbox list of installed DLC; grouped confirm dialog before deletion |
-| `SettingsDialog` | Parallel download count and network behavior toggles |
+| `SettingsDialog` | Parallel download count and network behavior toggles plus a Database group; the "Reset database cache" button runs `DLCDatabase.refresh()` on a background `QThread` (`DatabaseRefreshWorker`), keeping the modal responsive during the up-to-10 s network call (button shows `Refreshing...` and is disabled) |
 | `CompletionDialog` | Success screen reminding the user to run a DLC Unlocker |
 | `SpaceWarningDialog` | Warns when disk space is insufficient; allows "Continue Anyway" |
 
@@ -127,7 +128,7 @@ Each selected DLC is submitted as its own future to `ParallelInstallManager` and
 
 | Class | Responsibility |
 | --- | --- |
-| `DLCDatabase` | DLC catalog of 109 entries (EP/GP/SP/FP) mapping IDs to names and per-entry Cloudflare Workers download URLs. The whole remote `database.json` payload — any top-level keys — is fetched from `DEFAULT_DATABASE_URL` and cached under the app state folder (`database_cache.json`, 24 h TTL); on download failure it falls back to a stale cache, then to the hardcoded `DEFAULT_DATABASE_FALLBACK`. Entries are enriched with an estimated `size` (bytes) from the module-level `SIZE_ESTIMATES` table |
+| `DLCDatabase` | DLC catalog of 109 entries (EP/GP/SP/FP) mapping IDs to names and per-entry Cloudflare Workers download URLs. The whole remote `database.json` payload — any top-level keys — is fetched from `DEFAULT_DATABASE_URL` and cached under the app state folder (`database_cache.json`, 24 h TTL); on download failure it falls back to a stale cache, then to the hardcoded `DEFAULT_DATABASE_FALLBACK`. Entries are enriched with an estimated `size` (bytes) from the module-level `SIZE_ESTIMATES` table. `refresh()` (invoked manually from Settings → Reset database cache) deletes the cache file and re-runs the resolution order in place, returning `True` when the payload came from the remote server |
 | `GameDetector` | Finds the Sims 4 install path via Windows Registry keys (Maxis/EA Games) and scanning common Steam/Origin paths across drives C–H on Windows; on Linux/macOS parses Steam `libraryfolders.vdf` (XDG/macOS locations) for library-folders carrying `The Sims 4`, including a best-effort Proton `compatdata` prefix check; validates via `Game\Bin\TS4_x64.exe` |
 | `NetworkDiagnostics` | Detects region (RU/UA/BY via `ipapi.co`), tests reachability of GitHub/raw.githubusercontent, probes common local proxy ports, and recommends VPN (Cloudflare WARP) when blocked; its region API and proxy-port list are overridable via the `network` config section |
 | `UpdateChecker` | Runs on a background `QThread`; fetches `version.json` from the configurable `version_check_url` (avoiding API rate limits), caches results for 36 hours, and compares semver strings |
