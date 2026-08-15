@@ -1,7 +1,7 @@
 # Linua Updater — Architecture Overview
 
 **Version documented:** 4.3.0 LTS
-**Primary source:** `LinuaUpdater_v4.3.0.py` (single file, ~2600 lines)
+**Primary source:** the `linua_updater/` package (split from the former single-file `LinuaUpdater_v4.3.0.py`)
 
 ---
 
@@ -16,9 +16,25 @@ Linua Updater is a lightweight Windows desktop application that installs, verifi
 | Networking | `requests` (with `urllib3` TLS warnings disabled) |
 | Distribution | Single executable via PyInstaller |
 | Target platform | Windows 10/11 (64-bit) |
-| Entry point | `LinuaUpdater_v4.3.0.py` executes when run as `__main__` |
+| Entry point | `linua_updater/__main__.py` (run as `python -m linua_updater` or via `build.spec`) |
 
-The whole application is intentionally monolithic: all classes live in one module. Concerns are separated by class families rather than by files.
+The codebase is a flat-layout PyPI-style package (`pyproject.toml`, entry point in `__main__.py`). Concerns are separated by the layers below into modules under `linua_updater/`; see `docs/refactoring-plan.md` for the full class → module map.
+
+### Module layout
+
+```
+linua_updater/
+├── __main__.py            # entry point: palette, single-instance, wiring
+├── constants.py           # APP_VERSION, DEFAULT_* endpoints/mirrors, SIZE_ESTIMATES
+├── paths.py               # AppPaths — single source of truth for %LOCALAPPDATA%\LinuaUpdater paths & cache TTLs
+├── logging_util.py        # ImprovedLogger + _reveal_in_explorer
+├── utils/                 # ConfigManager, SingleInstanceLock, AdminElevator, DiskSpaceChecker, SevenZipFinder
+├── persistence/           # DownloadQueue, DownloadState (JSON state files)
+├── core/                  # DLCDatabase, SmartDownloader, Extractor, GameDetector, NetworkDiagnostics,
+│                          #  ParallelInstallManager, SingleDLCInstaller, MultiPartInstaller, InstallationStats
+├── workers/               # UpdateChecker, InstallWorker, UninstallWorker, DiagnosticsWorker (QObject/QThread)
+└── ui/                    # LinuaUI (main window), dialogs, widgets, theme
+```
 
 ---
 
@@ -152,7 +168,7 @@ Pause/Resume is fully wired: the Pause button suspends active downloads, and a s
 
 ### Local build (PyInstaller)
 
-- `build.spec` compiles `LinuaUpdater_v4.3.0.py` into `Linua-Updater` with UPX compression, windowed mode (`console=False`), no external data files.
+- `build.spec` compiles `linua_updater/__main__.py` into `Linua-Updater` with UPX compression, windowed mode (`console=False`), no external data files.
 - Manual build: `pip install pyinstaller requests PyQt6 && pyinstaller --noconfirm build.spec`.
 
 ### CI/CD (GitHub Actions)
