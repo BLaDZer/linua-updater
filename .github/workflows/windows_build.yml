@@ -19,12 +19,13 @@ jobs:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: |
-          pip install pyinstaller requests PyQt6
+        run: scripts\setup.bat
+
+      - name: Run checks
+        run: scripts\check.bat
 
       - name: Build EXE
-        run: |
-          pyinstaller --noconfirm build.spec
+        run: scripts\build.bat
 
       - name: Release the Package
         uses: softprops/action-gh-release@v2
