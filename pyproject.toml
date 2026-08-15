@@ -1,6 +1,6 @@
 [project]
 name = "linua-updater"
-version = "4.3.0"
+version = "5.0.0"
 description = "Installs, verifies and removes DLC content for The Sims 4."
 readme = "README.md"
 requires-python = ">=3.8"

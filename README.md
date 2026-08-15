@@ -2,6 +2,7 @@
 
 Modern DLC management tool for The Sims 4  
 © 2024–2025 l1ntol — All Rights Reserved
+© 2026–2026 BLaDZer — All Rights Reserved
 
 ---
 
@@ -41,7 +42,7 @@ It is a Python desktop application built with PyQt6 for the GUI and the `request
 
 ## **How to Use**
 
-1. Download the latest **LinuaUpdater.exe** from the [Releases](https://github.com/l1ntol/linua-updater/releases) page
+1. Download the latest **LinuaUpdater.exe** from the [Releases](https://github.com/BLaDZer/linua-updater/releases) page
 2. Run the application (no installation required)
 3. Allow auto-update check on first launch
 4. Select your Sims 4 folder (or use **Auto Detect**)
@@ -53,7 +54,7 @@ It is a Python desktop application built with PyQt6 for the GUI and the `request
 
 ## **Latest Updates**
 
-**Current Version:** Check [Releases](https://github.com/l1ntol/linua-updater/releases) for the latest version and changelog.
+**Current Version:** Check [Releases](https://github.com/BLaDZer/linua-updater/releases) for the latest version and changelog.
 
 **Recent Improvements:**
 * Auto-update notifications on startup
@@ -242,8 +243,8 @@ For detailed changelog, see individual release notes.
 
 The only legitimate sources are:
 
-* **Official GitHub repository:** [github.com/l1ntol/linua-updater](https://github.com/l1ntol/linua-updater)
-* **Official Releases page:** [Releases](https://github.com/l1ntol/linua-updater/releases)
+* **Official GitHub repository:** [github.com/BLaDZer/linua-updater](https://github.com/BLaDZer/linua-updater)
+* **Official Releases page:** [Releases](https://github.com/BLaDZer/linua-updater/releases)
 
 Do **NOT** download this tool from any third-party websites or repacks.
 
@@ -299,7 +300,7 @@ version.json           # update channel payload (version, download_url, changelo
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/l1ntol/linua-updater.git
+git clone https://github.com/BLaDZer/linua-updater.git
 cd linua-updater
 
 # 2. Create and activate a virtual environment
@@ -361,6 +362,7 @@ pyinstaller --noconfirm build.spec
 # **Copyright & Legal**
 
 © 2024–2025 l1ntol — **All Rights Reserved**
+© 2026–2026 BLaDZer — **All Rights Reserved**
 
 You may:
 
@@ -390,4 +392,4 @@ This project is not affiliated with or endorsed by Electronic Arts or Maxis.
 
 ---
 
-**Latest Release:** [Download Here](https://github.com/l1ntol/linua-updater/releases)
+**Latest Release:** [Download Here](https://github.com/BLaDZer/linua-updater/releases)

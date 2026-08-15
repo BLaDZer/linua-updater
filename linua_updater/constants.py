@@ -3,9 +3,9 @@
 Extracted verbatim from the former monolithic ``LinuaUpdater_v4.3.0.py``.
 """
 
-APP_VERSION = "4.3.0"
-GITHUB_REPO = "l1ntol/linua-updater"
-DEFAULT_VERSION_CHECK_URL = "https://raw.githubusercontent.com/l1ntol/linua-updater/main/version.json"
+APP_VERSION = "5.0.0"
+GITHUB_REPO = "BLaDZer/linua-updater"
+DEFAULT_VERSION_CHECK_URL = "https://raw.githubusercontent.com/BLaDZer/linua-updater/main/version.json"
 DEFAULT_REGION_API = "https://ipapi.co/json/"
 DEFAULT_PROXY_PORTS = [1080, 8080, 7890, 10808, 8888, 1087]
 DEFAULT_MIRRORS = {

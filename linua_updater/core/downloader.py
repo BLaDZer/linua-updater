@@ -5,7 +5,7 @@ import time
 
 import requests
 
-from linua_updater.constants import DEFAULT_MIRRORS
+from linua_updater.constants import DEFAULT_MIRRORS, APP_VERSION
 
 
 class SmartDownloader:
@@ -17,7 +17,7 @@ class SmartDownloader:
         self.resume = resume
         self.cleanup = cleanup
         self.session = requests.Session()
-        self.session.headers.update({'User-Agent': 'Linua-Updater/4.2'})
+        self.session.headers.update({'User-Agent': 'Linua-Updater/' + APP_VERSION})
         self._cancelled = False
         self._paused = False
         self._pause_cond = threading.Condition()

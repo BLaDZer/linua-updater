@@ -38,7 +38,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Linua Updater")
     app.setApplicationVersion(APP_VERSION)
-    app.setOrganizationName("l1ntol")
+    app.setOrganizationName("BLaDZer")
     apply_dark_palette(app)
     config = ConfigManager()
     db = DLCDatabase()
