@@ -29,11 +29,11 @@ def main():
     if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
     if SingleInstanceLock.is_already_running():
-        QMessageBox.critical(None, "Already Running", "Linua Updater is already running.\nCheck your system tray or task manager.")
+        QMessageBox.critical(None, "Already Running", "Linua Updater is already running.\nCheck your system tray / notification area.")
         sys.exit(1)
     instance_lock = SingleInstanceLock()
     if not instance_lock.acquire():
-        QMessageBox.critical(None, "Already Running", "Linua Updater is already running.\nCheck your system tray or task manager.")
+        QMessageBox.critical(None, "Already Running", "Linua Updater is already running.\nCheck your system tray / notification area.")
         sys.exit(1)
     app = QApplication(sys.argv)
     app.setApplicationName("Linua Updater")

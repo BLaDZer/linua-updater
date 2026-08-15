@@ -1,9 +1,11 @@
 import json
 import os
+import sys
 import time
+from pathlib import Path
 
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSlot
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
 from linua_updater.constants import APP_VERSION
@@ -23,6 +25,27 @@ from linua_updater.workers.diagnostics_worker import DiagnosticsWorker
 from linua_updater.workers.install_worker import InstallWorker
 from linua_updater.workers.uninstall_worker import UninstallWorker
 from linua_updater.workers.update_checker import UpdateChecker
+
+
+def _browse_default_dir(path_text):
+    """Default directory for the folder picker: the current text when present, else the user's home dir."""
+    return path_text or str(Path.home())
+
+
+def _game_placeholder(sys_platform):
+    """Placeholder hint for the game-folder field.
+
+    ``win32`` keeps the concrete Steam-on-Windows example; every other platform
+    (``linux``, ``darwin``, ...) gets a neutral path hint.
+    """
+    if sys_platform == "win32":
+        return "C:\\Program Files (x86)\\Steam\\steamapps\\common\\The Sims 4"
+    return "The Sims 4 folder (e.g. /path/to/the-sims-4)"
+
+
+def _ui_font_family():
+    """Cross-platform sans-serif font stack for UI text, with a generic fallback."""
+    return "'Segoe UI','Noto Sans','Arial',sans-serif"
 
 
 class LinuaUI(QMainWindow):
@@ -103,7 +126,7 @@ class LinuaUI(QMainWindow):
         layout.addWidget(path_label)
         row = QHBoxLayout()
         self.path_input = QLineEdit()
-        self.path_input.setPlaceholderText("C:\\Program Files (x86)\\Steam\\steamapps\\common\\The Sims 4")
+        self.path_input.setPlaceholderText(_game_placeholder(sys.platform))
         self.path_input.textChanged.connect(self.on_path_changed)
         browse = QPushButton("Browse...")
         browse.clicked.connect(self.browse_folder)
@@ -119,7 +142,7 @@ class LinuaUI(QMainWindow):
         layout.addWidget(self.dlc_status)
         self.download_progress = SimpleProgressBar()
         self.download_progress.setVisible(False)
-        self.download_progress.setStyleSheet("QProgressBar{background-color:#1a1a1a;border:2px solid #333;border-radius:6px;text-align:center;color:white;height:30px;font-weight:bold;font-size:14px;font-family:'Segoe UI',Arial;}QProgressBar::chunk{background-color:#00aa00;border-radius:4px;border:1px solid #008800;}")
+        self.download_progress.setStyleSheet(f"QProgressBar{{background-color:#1a1a1a;border:2px solid #333;border-radius:6px;text-align:center;color:white;height:30px;font-weight:bold;font-size:14px;font-family:{_ui_font_family()};}}QProgressBar::chunk{{background-color:#00aa00;border-radius:4px;border:1px solid #008800;}}")
         layout.addWidget(self.download_progress)
         self.download_detail = SimpleDetailWidget()
         layout.addWidget(self.download_detail)
@@ -149,7 +172,12 @@ class LinuaUI(QMainWindow):
         layout.addLayout(self.buttons_row)
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setFont(QFont("Consolas", 9))
+        try:
+            f = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+            f.setPointSize(9)
+        except Exception:
+            f = QFont("monospace", 9)
+        self.log_text.setFont(f)
         self.log_text.setStyleSheet("QTextEdit{background-color:#0a0a0a;color:#00ff00;border:1px solid #444;border-radius:4px;padding:5px;}")
         layout.addWidget(self.log_text, 1)
         info = QLabel(
@@ -265,7 +293,7 @@ class LinuaUI(QMainWindow):
             self.logger.log("Settings saved")
 
     def browse_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select The Sims 4 Folder", self.path_input.text() or "C:\\")
+        folder = QFileDialog.getExistingDirectory(self, "Select The Sims 4 Folder", _browse_default_dir(self.path_input.text()))
         if folder:
             self.path_input.setText(folder)
             self.config.set("game_path", folder)

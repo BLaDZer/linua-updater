@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-Linua Updater is a lightweight Windows desktop application that installs, verifies, and removes DLC content for *The Sims 4*. It is a Python desktop application using PyQt6 for the GUI and the `requests` library for networking, organized as a modular package (see Module layout).
+Linua Updater is a lightweight cross-platform desktop application that installs, verifies, and removes DLC content for *The Sims 4*. It is a Python desktop application using PyQt6 for the GUI and the `requests` library for networking, organized as a modular package (see Module layout). Windows remains the primary target; Linux/macOS are supported where noted.
 
 | Aspect | Detail |
 | --- | --- |
@@ -15,7 +15,7 @@ Linua Updater is a lightweight Windows desktop application that installs, verifi
 | GUI framework | PyQt6 |
 | Networking | `requests` (with `urllib3` TLS warnings disabled) |
 | Distribution | Single executable via PyInstaller |
-| Target platform | Windows 10/11 (64-bit) |
+| Target platform | Cross-platform: Windows 10/11 (64-bit) primary; Linux/macOS supported |
 | Entry point | `linua_updater/__main__.py` (run as `python -m linua_updater` or via `build.spec`) |
 
 The codebase is a flat-layout PyPI-style package (`pyproject.toml`, entry point in `__main__.py`). Concerns are separated by the layers below into modules under `linua_updater/`; see `docs/refactoring-plan.md` for the full class → module map.
@@ -26,7 +26,8 @@ The codebase is a flat-layout PyPI-style package (`pyproject.toml`, entry point 
 linua_updater/
 ├── __main__.py            # entry point: palette, single-instance, wiring
 ├── constants.py           # APP_VERSION, DEFAULT_* endpoints/mirrors, SIZE_ESTIMATES
-├── paths.py               # AppPaths — single source of truth for %LOCALAPPDATA%\LinuaUpdater paths & cache TTLs
+├── paths.py               # AppPaths — single source of truth for the per-platform data dir & cache TTLs
+│                          #   (%LOCALAPPDATA%\LinuaUpdater / ~/Library/Application Support / XDG)
 ├── logging_util.py        # ImprovedLogger + _reveal_in_explorer
 ├── utils/                 # ConfigManager, SingleInstanceLock, AdminElevator, DiskSpaceChecker, SevenZipFinder
 ├── persistence/           # DownloadQueue, DownloadState (JSON state files)
@@ -48,7 +49,7 @@ The application follows a layered design connected by Qt signals/slots:
 | Worker threads | Long-running work off the UI thread | `InstallWorker`, `UninstallWorker`, `SmartDownloader`, `UpdateChecker`, `DiagnosticsWorker` |
 | Services | Domain logic: detection, networking, extraction | `GameDetector`, `NetworkDiagnostics`, `Extractor`, `DLCDatabase` |
 | Utilities | Cross-cutting concerns | `ConfigManager`, `SingleInstanceLock`, `AdminElevator`, `SevenZipFinder`, `DiskSpaceChecker`, `ImprovedLogger` |
-| Persistence | Local JSON state under `%LOCALAPPDATA%\LinuaUpdater\` | `ConfigManager`, `DownloadQueue`, `DownloadState`, `UpdateChecker` (cache) |
+| Persistence | Local JSON state under the platform data dir (below) | `ConfigManager`, `DownloadQueue`, `DownloadState`, `UpdateChecker` (cache) |
 
 Data flows: UI captures intent → worker thread performs work → worker emits Qt signals → UI updates in response. The UI thread never performs network or disk-intensive work directly; startup network operations run in background `QThread`s.
 
@@ -71,7 +72,7 @@ The single main window combines everything:
 | Area | Widget | Purpose |
 | --- | --- | --- |
 | Header | `QLabel` | App title + version |
-| Path input | `QLineEdit` + Browse/Auto Detect | Sims 4 installation folder |
+| Path input | `QLineEdit` + Browse/Auto Detect | Sims 4 installation folder; placeholder and Browse default are per-platform (Windows Steam example vs a generic hint, `Path.home()` fallback) |
 | Status | `QLabel` | Installed vs available DLC counts |
 | Progress | `SimpleProgressBar` + `SimpleDetailWidget` | Download progress and live stats |
 | Actions | Buttons | Install, Uninstall, Pause, Cancel, Settings, Export Logs |
@@ -127,7 +128,7 @@ Each selected DLC is submitted as its own future to `ParallelInstallManager` and
 | Class | Responsibility |
 | --- | --- |
 | `DLCDatabase` | Hardcoded in-memory catalog of 109 DLC entries (EP/GP/SP/FP) mapping IDs to names and per-entry Cloudflare Workers download URLs, each enriched with an estimated `size` (bytes) from the single module-level `SIZE_ESTIMATES` table |
-| `GameDetector` | Finds the Sims 4 install path via Windows Registry keys (Maxis/EA Games) and scanning common Steam/Origin paths across drives C–H; validates via `Game\Bin\TS4_x64.exe` |
+| `GameDetector` | Finds the Sims 4 install path via Windows Registry keys (Maxis/EA Games) and scanning common Steam/Origin paths across drives C–H on Windows; on Linux/macOS parses Steam `libraryfolders.vdf` (XDG/macOS locations) for library-folders carrying `The Sims 4`, including a best-effort Proton `compatdata` prefix check; validates via `Game\Bin\TS4_x64.exe` |
 | `NetworkDiagnostics` | Detects region (RU/UA/BY via `ipapi.co`), tests reachability of GitHub/raw.githubusercontent, probes common local proxy ports, and recommends VPN (Cloudflare WARP) when blocked; its region API and proxy-port list are overridable via the `network` config section |
 | `UpdateChecker` | Runs on a background `QThread`; fetches `version.json` from the configurable `version_check_url` (avoiding API rate limits), caches results for 36 hours, and compares semver strings |
 
@@ -139,8 +140,8 @@ Each selected DLC is submitted as its own future to `ParallelInstallManager` and
 | --- | --- |
 | `ConfigManager` | Loads/saves user config (game path + settings) to `config.json`, plus an optional `network` section overriding `version_check_url`, `region_api`, `proxy_ports`, and `mirrors` |
 | `SingleInstanceLock` | Acquires a local TCP port to guarantee a single running instance |
-| `AdminElevator` | Detects admin rights (`IsUserAnAdmin`) and restarts the app elevated via `ShellExecuteW` when targeting protected paths |
-| `SevenZipFinder` | Locates `7z.exe`/`7za.exe` across common install paths and PATH |
+| `AdminElevator` | Detects admin rights (`IsUserAnAdmin` on Windows, `euid==0` on POSIX) and restarts the app elevated via `ShellExecuteW` (Windows), `pkexec`/`sudo -A`/`gksudo` (Linux), or `osascript ... with administrator privileges` (macOS) when targeting protected paths; the capability check is a portable write-test |
+| `SevenZipFinder` | Locates 7-Zip across common OS paths and PATH (`7z.exe`/`7za.exe` on Windows, `7z`/`7za`/`7zz` on POSIX) via `shutil.which` |
 | `DiskSpaceChecker` | Computes per-DLC sizes by reading the DB `size` field first, falling back to the `SIZE_ESTIMATES` table and finally a default of 500 MB; totals with a 10% temp buffer and compares against free space |
 | `ImprovedLogger` | Writes timestamped color-coded lines to the UI and a rotating file logger (`updater.log`, 5 MB × 3) |
 | `DownloadQueue` | JSON persistence for interrupted-download state |
@@ -149,7 +150,7 @@ Each selected DLC is submitted as its own future to `ParallelInstallManager` and
 
 ## 7. Persistence & State
 
-All state lives under `%LOCALAPPDATA%\LinuaUpdater\` as JSON files:
+All state lives under the per-platform application data directory as JSON files. `AppPaths.BASE_DIR` resolves to `%LOCALAPPDATA%\LinuaUpdater` on Windows (honoring `LOCALAPPDATA`, falling back to `Path.home()\AppData\Local` — the legacy layout, unchanged), `~/Library/Application Support/LinuaUpdater` on macOS, and `$XDG_DATA_HOME/linua-updater` (default `~/.local/share/linua-updater`) on Linux/other POSIX. The relative file names below are identical on every OS.
 
 | File | Owner | Purpose |
 | --- | --- | --- |
@@ -158,7 +159,7 @@ All state lives under `%LOCALAPPDATA%\LinuaUpdater\` as JSON files:
 | `diag_cache.json` | `LinuaUI` | Network diagnostics result (3-hour TTL), applied on the UI thread |
 | `download_queue.json` | `DownloadQueue` | In-progress download records; written on pause, cleared on finish/cancel |
 | `download_state.json` | `DownloadState` | Pause/resume snapshot including `game_path` (24-hour TTL); written on pause, cleared on finish/cancel |
-| `logs\updater.log` | `ImprovedLogger` | Rotating application log |
+| `logs/updater.log` | `ImprovedLogger` | Rotating application log |
 
 Pause/Resume is fully wired: the Pause button suspends active downloads, and a startup dialog offers to resume any remaining DLC from the saved state.
 
@@ -181,11 +182,11 @@ python -m linua_updater                              # run the GUI
 QT_QPA_PLATFORM=offscreen python -m linua_updater    # run without a display (CI/dev)
 
 pip install -e ".[dev]"                              # pytest, ruff, pyinstaller
-python -m pytest tests/                              # 18 smoke tests (core logic)
+python -m pytest tests/                              # smoke tests (core logic + cross-platform helpers)
 ruff check linua_updater/                            # lint
 ```
 
-Tests cover the non-GUI core logic (catalog size, zip-slip rejection, disk-space math, config/persistence round-trips, semver comparison); PyQt6 is only required to import/run the UI and worker modules.
+Tests cover the non-GUI core logic (catalog size, zip-slip rejection, disk-space math, config/persistence round-trips, semver comparison) plus per-platform helpers (data-dir resolution, admin/elevation fallbacks, 7-Zip discovery, Steam game detection, UI placeholder/browse/font defaults); PyQt6 is only required to import/run the UI and worker modules.
 
 ### Developer scripts
 
@@ -238,6 +239,6 @@ Both install `pyinstaller`, `requests`, `PyQt6`, run `pyinstaller --noconfirm bu
 - **Estimated sizes:** catalog `size` fields (and `SIZE_ESTIMATES` fallbacks) are estimates, not verified byte counts; disk-space and summary calculations can be off from the real archive sizes.
 - **Multipart unused:** `MultiPartInstaller` + `SevenZipFinder` remain implemented for `.7z.001/002/...` archives, but no catalog entry currently defines `parts[]`, so the path never runs with the shipped catalog.
 - **Hardcoded per-entry URLs:** update-check / region-API / proxy-port / mirror defaults are overridable via the `network` config section, but each DLC download URL is still a hardcoded per-entry value in `DLCDatabase`; operators override the CDN by editing URLs or shipping a new release via `version.json`.
-- **Windows-only paths:** registry access, `IsUserAnAdmin`, and `where` rely on win32; the code guards with `sys.platform == "win32"` checks but the app is Windows-targeted.
+- **Windows-only remnants:** the Registry game lookup, the C–H drive scan, and `ctypes` shell elevation (`ShellExecuteW`) still run only under `sys.platform == "win32"`; everything else (paths, admin check, 7-Zip discovery, Steam detection, elevation via pkexec/sudo/osascript) is cross-platform guarded the same way.
 - **Best-effort endpoints:** proxy/mirror endpoints (including the `gh-proxy.com` prefix mirrors and region API) may become stale or block connections; download fallbacks degrade gracefully.
 - **Security posture:** TLS verification is enabled (`verify=True`) on all HTTP calls, and `Extractor.extract_zip` validates every archive member path (rejecting absolute, `..`, and escaping paths) to mitigate zip-slip; the README's security notice correctly warns about fake distribution copies.

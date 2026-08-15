@@ -99,7 +99,7 @@ class MultiPartInstaller:
         try:
             self._start_time = time.time()
             if not self.seven or not os.path.exists(self.seven):
-                return False, "7z.exe not found"
+                return False, "7-Zip not found"
             parts = self.info.get("parts", [])
             if not parts:
                 return False, "No parts defined"

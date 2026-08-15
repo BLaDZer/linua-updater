@@ -47,7 +47,7 @@ class Extractor:
     def extract_7z(self, seven, archive_path, out_dir):
         try:
             if not os.path.exists(seven):
-                return False, "7z.exe not found"
+                return False, "7-Zip not found"
             if not os.path.exists(archive_path):
                 return False, "Archive not found"
             os.makedirs(out_dir, exist_ok=True)
