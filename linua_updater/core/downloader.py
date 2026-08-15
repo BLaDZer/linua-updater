@@ -5,7 +5,7 @@ import time
 
 import requests
 
-from linua_updater.constants import DEFAULT_MIRRORS, APP_VERSION
+from linua_updater.constants import APP_VERSION, DEFAULT_MIRRORS
 
 
 class SmartDownloader:

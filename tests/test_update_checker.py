@@ -4,8 +4,15 @@ import time
 import pytest
 import requests
 
+from linua_updater.constants import APP_VERSION
 from linua_updater.paths import AppPaths
 from linua_updater.workers.update_checker import UpdateChecker
+
+
+def _newer_version():
+    parts = [int(x) for x in APP_VERSION.split(".")]
+    parts[0] += 1
+    return ".".join(str(x) for x in parts)
 
 
 @pytest.fixture
@@ -49,14 +56,14 @@ def test_compare_versions_shorter_major_wins_rule():
 
 def test_check_update_available_emits_signal(isolated_update_cache, monkeypatch):
     def fake_get(url, timeout):
-        return FakeResponse(200, {"version": "v4.4.0", "download_url": "https://example.com/dl"})
+        return FakeResponse(200, {"version": "v" + _newer_version(), "download_url": "https://example.com/dl"})
 
     monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
     checker = UpdateChecker()
     emitted = []
     checker.update_available.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
-    assert emitted == [("4.4.0", "https://example.com/dl")]
+    assert emitted == [(_newer_version(), "https://example.com/dl")]
 
 
 def test_check_no_update_emits(isolated_update_cache, monkeypatch):
@@ -110,7 +117,7 @@ def test_check_connection_error_emits_failed(isolated_update_cache, monkeypatch)
 def test_check_uses_fresh_cache(isolated_update_cache, monkeypatch):
     (isolated_update_cache / "update_cache.json").write_text(json.dumps({
         "timestamp": time.time(),
-        "latest_version": "4.4.0",
+        "latest_version": _newer_version(),
         "download_url": "https://example.com/dl",
     }))
     calls = []
@@ -124,21 +131,21 @@ def test_check_uses_fresh_cache(isolated_update_cache, monkeypatch):
     emitted = []
     checker.update_available.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
-    assert emitted == [("4.4.0", "https://example.com/dl")]
+    assert emitted == [(_newer_version(), "https://example.com/dl")]
     assert calls == []
 
 
 def test_check_expired_cache_ignored(isolated_update_cache, monkeypatch):
     (isolated_update_cache / "update_cache.json").write_text(json.dumps({
         "timestamp": time.time() - 7200,
-        "latest_version": "4.4.0",
+        "latest_version": APP_VERSION,
         "download_url": "https://example.com/dl",
     }))
     calls = []
 
     def fake_get(url, timeout):
         calls.append(url)
-        return FakeResponse(200, {"version": "4.4.1", "download_url": "https://example.com/new"})
+        return FakeResponse(200, {"version": _newer_version(), "download_url": "https://example.com/new"})
 
     monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
     checker = UpdateChecker()
@@ -146,7 +153,7 @@ def test_check_expired_cache_ignored(isolated_update_cache, monkeypatch):
     checker.update_available.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
     assert calls == [checker.version_url]
-    assert emitted == [("4.4.1", "https://example.com/new")]
+    assert emitted == [(_newer_version(), "https://example.com/new")]
 
 
 def test_save_cache_writes_file(isolated_update_cache):
