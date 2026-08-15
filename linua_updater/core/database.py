@@ -9,7 +9,19 @@ class DLCDatabase:
             "EP03": {"name": "City Living", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP03.zip"},
             "EP04": {"name": "Cats and Dogs", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP04.zip"},
             "EP05": {"name": "Seasons", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP05.zip"},
-            "EP06": {"name": "Get Famous", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.zip"},
+            "EP06": {
+                "name": "Get Famous",
+                "url": "somewhere/EP06.zip",
+                "parts": [
+                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.001",
+                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.002",
+                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.003",
+                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.004",
+                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.005",
+                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.006",
+                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.007",
+                ]
+            },
             "EP07": {"name": "Island Living", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP07.zip"},
             "EP08": {"name": "Discover University", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP08.zip"},
             "EP09": {"name": "Eco Lifestyle", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP09.zip"},
