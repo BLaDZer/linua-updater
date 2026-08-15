@@ -3,6 +3,8 @@ import tempfile
 import threading
 import time
 
+from linua_updater.core.checksum import verify_file_checksums
+
 
 class SingleDLCInstaller:
     def __init__(self, dlc_id, info, game_path, downloader, extractor, logger, stats=None):
@@ -50,6 +52,13 @@ class SingleDLCInstaller:
                 return False, "Downloaded file is empty"
             if file_size < 1024:
                 return False, "Downloaded file too small (corrupted?)"
+            errors = verify_file_checksums(temp, self.info.get("checksum"))
+            if errors:
+                for error in errors:
+                    self.log(error, "WARNING")
+                if self.stats:
+                    self.stats.record_error(self.dlc, "; ".join(errors))
+                return False, "; ".join(errors)
             self.log("Extracting...")
             ok, reason = self.ex.extract_zip(temp, self.game)
             if not ok:

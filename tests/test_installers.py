@@ -126,6 +126,47 @@ def test_single_success_records_download(temp_download_dir):
     assert ex.extract_zip_calls == [(dl.out_paths[0], str(temp_download_dir))]
 
 
+def test_single_checksum_failure_records_error(temp_download_dir):
+    import hashlib
+
+    payload = b"x" * 2048
+    dl = StubDownloader([(True, payload)])
+    ex = StubExtractor()
+    stats = InstallationStats()
+    info = {
+        "url": "http://example.com/a.zip",
+        "checksum": {"sha256": "0" * 64},
+    }
+    installer = _single("EP01", info, str(temp_download_dir), dl, ex, stats)
+    ok, msg = installer.run()
+    assert ok is False
+    assert "Checksum mismatch" in msg
+    assert len(stats.errors) == 1
+    assert stats.errors[0]["dlc_id"] == "EP01"
+    assert "Checksum mismatch" in stats.errors[0]["error"]
+    assert ex.extract_zip_calls == []
+    assert hashlib.sha256(payload).hexdigest() != "0" * 64
+
+
+def test_single_checksum_success(temp_download_dir):
+    import hashlib
+
+    payload = b"x" * 2048
+    dl = StubDownloader([(True, payload)])
+    ex = StubExtractor()
+    stats = InstallationStats()
+    info = {
+        "url": "http://example.com/a.zip",
+        "checksum": {"sha256": hashlib.sha256(payload).hexdigest()},
+    }
+    installer = _single("EP01", info, str(temp_download_dir), dl, ex, stats)
+    ok, msg = installer.run()
+    assert ok is True
+    assert msg == "OK"
+    assert stats.errors == []
+    assert ex.extract_zip_calls == [(dl.out_paths[0], str(temp_download_dir))]
+
+
 def test_single_cleanup_removes_temp(temp_download_dir):
     dl = StubDownloader([(True, b"x" * 2048)], cleanup=True)
     ex = StubExtractor()
