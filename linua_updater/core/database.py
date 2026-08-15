@@ -1,137 +1,112 @@
-from linua_updater.constants import SIZE_ESTIMATES
+import copy
+import json
+import time
+
+import requests
+
+from linua_updater.constants import DEFAULT_DATABASE_FALLBACK, DEFAULT_DATABASE_URL, SIZE_ESTIMATES
+from linua_updater.paths import AppPaths
 
 
 class DLCDatabase:
-    def __init__(self):
-        self.dlc = {
-            "EP01": {"name": "Get to Work", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP01.zip"},
-            "EP02": {"name": "Get Together", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP02.zip"},
-            "EP03": {"name": "City Living", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP03.zip"},
-            "EP04": {"name": "Cats and Dogs", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP04.zip"},
-            "EP05": {"name": "Seasons", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP05.zip"},
-            "EP06": {
-                "name": "Get Famous",
-                "url": "somewhere/EP06.zip",
-                "parts": [
-                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.001",
-                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.002",
-                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.003",
-                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.004",
-                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.005",
-                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.006",
-                    "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.007",
-                ]
-            },
-            "EP07": {"name": "Island Living", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP07.zip"},
-            "EP08": {"name": "Discover University", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP08.zip"},
-            "EP09": {"name": "Eco Lifestyle", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP09.zip"},
-            "EP10": {"name": "Snowy Escape", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP10.zip"},
-            "EP11": {"name": "Cottage Living", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP11.zip"},
-            "EP12": {"name": "High School Years", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP12.zip"},
-            "EP13": {"name": "Growing Together", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP13.zip"},
-            "EP14": {"name": "Horse Ranch", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP14.zip"},
-            "EP15": {"name": "For Rent", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP15.zip"},
-            "EP16": {"name": "The Sims 4 Strangerville", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP16.zip"},
-            "EP17": {"name": "Realm of Magic", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP17.zip"},
-            "EP18": {"name": "My Wedding Stories", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP18.zip"},
-            "EP19": {"name": "Werewolves", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP19.zip"},
-            "EP20": {"name": "Adventure in the Jungle", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP20.zip"},
-            "EP21": {"name": "Royalty & Legacy", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP21.zip"},
-            "FP01": {"name": "Holiday Celebration Pack", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/FP01.zip"},
-            "GP01": {"name": "Outdoor Retreat", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP01.zip"},
-            "GP02": {"name": "Spa Day", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP02.zip"},
-            "GP03": {"name": "Dine Out", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP03.zip"},
-            "GP04": {"name": "Vampires", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP04.zip"},
-            "GP05": {"name": "Parenthood", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP05.zip"},
-            "GP06": {"name": "Jungle Adventure", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP06.zip"},
-            "GP07": {"name": "StrangerVille", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP07.zip"},
-            "GP08": {"name": "Star Wars: Journey to Batuu", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP08.zip"},
-            "GP09": {"name": "Dream Home Decorator", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP09.zip"},
-            "GP10": {"name": "My Wedding Stories", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP10.zip"},
-            "GP11": {"name": "Werewolves", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP11.zip"},
-            "GP12": {"name": "Oasis Springs Pack", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/GP12.zip"},
-            "SP01": {"name": "Luxury Party Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP01.zip"},
-            "SP02": {"name": "Perfect Patio Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP02.zip"},
-            "SP03": {"name": "Cool Kitchen Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP03.zip"},
-            "SP04": {"name": "Spooky Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP04.zip"},
-            "SP05": {"name": "Movie Hangout Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP05.zip"},
-            "SP06": {"name": "Romantic Garden Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP06.zip"},
-            "SP07": {"name": "Kids Room Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP07.zip"},
-            "SP08": {"name": "Backyard Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP08.zip"},
-            "SP09": {"name": "Vintage Glamour Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP09.zip"},
-            "SP10": {"name": "Bowling Night Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP10.zip"},
-            "SP11": {"name": "Fitness Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP11.zip"},
-            "SP12": {"name": "Toddler Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP12.zip"},
-            "SP13": {"name": "Laundry Day Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP13.zip"},
-            "SP14": {"name": "My First Pet Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP14.zip"},
-            "SP15": {"name": "Moschino Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP15.zip"},
-            "SP16": {"name": "Tiny Living Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP16.zip"},
-            "SP17": {"name": "Nifty Knitting Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP17.zip"},
-            "SP18": {"name": "Paranormal Stuff", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP18.zip"},
-            "SP20": {"name": "Throwback Fit Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP20.zip"},
-            "SP21": {"name": "Country Kitchen Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP21.zip"},
-            "SP22": {"name": "Bust the Dust Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP22.zip"},
-            "SP23": {"name": "Courtyard Oasis Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP23.zip"},
-            "SP24": {"name": "Fashion Street Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP24.zip"},
-            "SP25": {"name": "Industrial Loft Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP25.zip"},
-            "SP26": {"name": "Incheon Arrivals Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP26.zip"},
-            "SP28": {"name": "Modern Menswear Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP28.zip"},
-            "SP29": {"name": "Blooming Rooms Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP29.zip"},
-            "SP30": {"name": "Carnaval Streetwear Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP30.zip"},
-            "SP31": {"name": "Decor to the Max Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP31.zip"},
-            "SP32": {"name": "Moonlight Chic Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP32.zip"},
-            "SP33": {"name": "Little Campers Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP33.zip"},
-            "SP34": {"name": "First Fits Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP34.zip"},
-            "SP35": {"name": "Desert Luxe Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP35.zip"},
-            "SP36": {"name": "Pastel Pop Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP36.zip"},
-            "SP37": {"name": "Everyday Clutter Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP37.zip"},
-            "SP38": {"name": "Simtimates Collection Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP38.zip"},
-            "SP39": {"name": "Bathroom Clutter Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP39.zip"},
-            "SP40": {"name": "Greenhouse Haven Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP40.zip"},
-            "SP41": {"name": "Basement Treasures Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP41.zip"},
-            "SP42": {"name": "Grunge Revival Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP42.zip"},
-            "SP43": {"name": "Book Nook Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP43.zip"},
-            "SP44": {"name": "Poolside Splash Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP44.zip"},
-            "SP45": {"name": "Modern Luxe Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP45.zip"},
-            "SP46": {"name": "Culinary Delights Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP46.zip"},
-            "SP47": {"name": "Little Castle Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP47.zip"},
-            "SP48": {"name": "Goth Galore Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP48.zip"},
-            "SP49": {"name": "Sunflower & Daisies Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP49.zip"},
-            "SP50": {"name": "Fashion Nostalgia Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP50.zip"},
-            "SP51": {"name": "Party Essentials Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP51.zip"},
-            "SP52": {"name": "Villa on the Riviera Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP52.zip"},
-            "SP53": {"name": "Cozy Cafe Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP53.zip"},
-            "SP54": {"name": "Artist Studio Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP54.zip"},
-            "SP55": {"name": "Kids Fairytale Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP55.zip"},
-            "SP56": {"name": "Pyjama Party Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP56.zip"},
-            "SP57": {"name": "Bella's Kitchen Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP57.zip"},
-            "SP58": {"name": "Gamer's Delight Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP58.zip"},
-            "SP59": {"name": "Belle's Beauty Boutique Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP59.zip"},
-            "SP60": {"name": "Downtown Loft Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP60.zip"},
-            "SP61": {"name": "Luxurious Living Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP61.zip"},
-            "SP62": {"name": "Professionalism Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP62.zip"},
-            "SP63": {"name": "Trendy Bathroom Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP63.zip"},
-            "SP64": {"name": "Romantic Mood Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP64.zip"},
-            "SP65": {"name": "DIY Repair Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP65.zip"},
-            "SP66": {"name": "Golden Years Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP66.zip"},
-            "SP67": {"name": "Kitchen Utensil Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP67.zip"},
-            "SP68": {"name": "SP68", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP68.zip"},
-            "SP69": {"name": "Autumn Looks Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP69.zip"},
-            "SP70": {"name": "SP70", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP70.zip"},
-            "SP71": {"name": "Country Living Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP71.zip"},
-            "SP72": {"name": "Ideal Makeup Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP72.zip"},
-            "SP73": {"name": "Modern Interior Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP73.zip"},
-            "SP74": {"name": "From the Garden Kit", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP74.zip"},
-            "SP76": {"name": "SP76", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP76.zip"},
-            "SP77": {"name": "SP77", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP77.zip"},
-            "SP81": {"name": "SP81", "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/SP81.zip"},
-        }
+    """DLC catalog backed by the remote ``database.json`` payload.
+
+    The remote file is treated as a generic database: the whole payload (any
+    keys such as ``version``, ``updatedAt``, ``dlc``, ...) is cached verbatim
+    under the app state folder. Today only the ``dlc`` key is consumed, but
+    future keys can be read straight from :attr:`data` without restructuring.
+
+    Resolution order:
+
+    1. a fresh cache file (younger than ``cache_duration``) is used as-is;
+    2. otherwise the remote URL is fetched and, if valid, stored to cache;
+    3. otherwise a stale but parseable cache is reused;
+    4. finally the hardcoded :data:`~linua_updater.constants.DEFAULT_DATABASE_FALLBACK`.
+    """
+
+    def __init__(self, db_url=None, cache_file=None, cache_duration=None):
+        self.db_url = db_url or DEFAULT_DATABASE_URL
+        self.cache_file = cache_file or AppPaths.DATABASE_CACHE_FILE
+        self.cache_duration = cache_duration if cache_duration is not None else AppPaths.DATABASE_CACHE_DURATION
+        self.data = self._load()
+        self.dlc = self.data.get("dlc", {})
         for dlc_id, info in self.dlc.items():
             if dlc_id in SIZE_ESTIMATES:
                 info['size'] = SIZE_ESTIMATES[dlc_id]
+
+    def _load(self):
+        fresh = self._load_cache(fresh_only=True)
+        if fresh is not None:
+            self.source = "cache"
+            return fresh
+        downloaded = self._download()
+        if downloaded is not None:
+            self._save_cache(downloaded)
+            self.source = "remote"
+            return downloaded
+        stale = self._load_cache(fresh_only=False)
+        if stale is not None:
+            self.source = "stale_cache"
+            return stale
+        self.source = "fallback"
+        return copy.deepcopy(DEFAULT_DATABASE_FALLBACK)
+
+    def _load_cache(self, fresh_only=True):
+        """Return the cached payload, or ``None`` when missing/invalid/stale."""
+        try:
+            with open(self.cache_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self._cache_age_h = int((time.time() - data.get("timestamp", 0)) / 3600)
+            if fresh_only and time.time() - data.get("timestamp", 0) >= self.cache_duration:
+                return None
+            payload = data.get("database")
+            return payload if self._is_valid(payload) else None
+        except Exception:
+            return None
+
+    def _download(self):
+        try:
+            response = requests.get(self.db_url, timeout=10)
+            if response.status_code == 200:
+                payload = response.json()
+                if self._is_valid(payload):
+                    return payload
+        except Exception:
+            pass
+        return None
+
+    def _save_cache(self, payload):
+        try:
+            AppPaths.ensure()
+            cache = {"timestamp": time.time(), "database": payload}
+            with open(self.cache_file, "w", encoding="utf-8") as f:
+                json.dump(cache, f, ensure_ascii=False)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _is_valid(payload):
+        if not isinstance(payload, dict):
+            return False
+        dlc = payload.get("dlc")
+        return isinstance(dlc, dict) and len(dlc) > 0
 
     def all(self):
         return self.dlc
 
     def get(self, dlc_id):
         return self.dlc.get(dlc_id)
+
+    def get_key(self, key, default=None):
+        """Return any top-level key of the remote database payload (e.g. ``version``)."""
+        return self.data.get(key, default)
+
+    def source_description(self):
+        """One ready-to-log sentence naming which branch produced the payload."""
+        if self.source == "remote":
+            return f"DLC database: refreshed from remote ({self.db_url})"
+        if self.source == "stale_cache":
+            return f"DLC database: loaded from stale cache ({self.cache_file}, ~{self._cache_age_h} h old)"
+        if self.source == "fallback":
+            return "DLC database: using built-in fallback data"
+        return f"DLC database: loaded from cache ({self.cache_file})"

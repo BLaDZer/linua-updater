@@ -35,6 +35,7 @@ class InstallWorker(QObject):
         self.parallel_manager = None
         self.logger = ImprovedLogger()
         self.db = DLCDatabase()
+        self.logger.log(self.db.source_description(), "INFO")
         self.downloader = SmartDownloader(self.logger)
         self.extractor = Extractor(self.logger)
         self.stats = InstallationStats()

@@ -121,6 +121,7 @@ class LinuaUI(QMainWindow):
         self.setup_ui()
         self.apply_dark_theme()
         self.logger = ImprovedLogger(self.log_text)
+        self.logger.log(self.db.source_description(), "INFO")
         self.diagnostics = None
         self.downloader = SmartDownloader(self.logger)
         self.extractor = Extractor(self.logger)
