@@ -43,6 +43,68 @@ def _game_placeholder(sys_platform):
     return "The Sims 4 folder (e.g. /path/to/the-sims-4)"
 
 
+def _persistable_game_path(text):
+    """Return ``text.strip()`` when it is a valid game folder, else ``None``.
+
+    A path is persistable only when ``Game/Bin/TS4_x64.exe`` exists, matching
+    the check ``GameDetector._has_valid_exe`` relies on. Existing directories
+    without the executable (or partial/empty input) are never persistable.
+    """
+    path = text.strip()
+    if path and GameDetector._has_valid_exe(path):
+        return path
+    return None
+
+
+def _game_folder_state(text):
+    """Return whether ``text`` maps to a valid game folder via ``_persistable_game_path``.
+
+    A folder is valid only when it exists and contains ``Game/Bin/TS4_x64.exe``;
+    empty or partial input, non-existent paths, and existing directories without
+    the executable all resolve to ``False``, matching the rule used for persistence.
+    """
+    return _persistable_game_path(text) is not None
+
+
+def _startup_detect_message(saved):
+    """Startup line describing the persisted game folder: which of the three states applies.
+
+    No saved path, a saved path that is not a valid game folder, and a valid
+    saved folder each map to exactly one message.
+    """
+    if not saved.strip():
+        return "No game folder saved. Click 'Auto Detect' or choose the folder manually."
+    path = _persistable_game_path(saved)
+    if path is None:
+        return f"Saved game folder is not a valid game path: {saved.strip()}. Click 'Auto Detect' or choose the folder manually."
+    return f"Using saved game folder: {path}"
+
+
+def _resolve_detected_path(text):
+    """Return the persistable saved/current path when valid, else the scan result.
+
+    The persistable check runs first so auto-detection skips the full
+    ``GameDetector.find_game()`` scan whenever a valid game folder is already
+    present in the field.
+    """
+    path = _persistable_game_path(text)
+    if path:
+        return path
+    return GameDetector.find_game()
+
+
+def _changed_valid_path(text, stored):
+    """Return the persistable path when it is valid and differs from ``stored``, else ``None``.
+
+    ``stored`` is stripped before comparing, and an empty stored value never
+    matches a real path, so a genuinely new save is always returned.
+    """
+    path = _persistable_game_path(text)
+    if path and path != stored.strip():
+        return path
+    return None
+
+
 def _ui_font_family():
     """Cross-platform sans-serif font stack for UI text, with a generic fallback."""
     return "'Segoe UI','Noto Sans','Arial',sans-serif"
@@ -79,7 +141,7 @@ class LinuaUI(QMainWindow):
             self.path_input.setText(saved)
         QTimer.singleShot(100, self.check_for_updates)
         QTimer.singleShot(300, self.run_diagnostics)
-        QTimer.singleShot(500, self.auto_detect)
+        QTimer.singleShot(500, self._startup_detect)
         self.dlc_check_timer.start(3000)
         QTimer.singleShot(1000, self.update_dlc_status)
         QTimer.singleShot(600, self.check_saved_download_state)
@@ -204,13 +266,31 @@ class LinuaUI(QMainWindow):
             QMessageBox.warning(self, "Export Failed", f"Failed to export logs:\n{result}")
 
     def on_path_changed(self, text):
-        QTimer.singleShot(500, self.update_dlc_status)
+        QTimer.singleShot(500, self._on_path_idle)
+
+    def _persist_valid_path(self, text):
+        """Persist ``game_path`` to config when the input is a valid game folder.
+
+        Returns the persisted path, or ``None`` when the input is invalid and
+        leaves the stored value untouched.
+        """
+        path = _persistable_game_path(text)
+        if path:
+            self.config.set("game_path", path)
+        return path
+
+    def _on_path_idle(self):
+        path = _changed_valid_path(self.path_input.text(), self.config.get("game_path", ""))
+        if path:
+            self.config.set("game_path", path)
+            self.logger.log(f"Game path saved: {path}")
+        self.update_dlc_status()
 
     def update_dlc_status(self):
         if self.is_closing or not self.isVisible():
             return
-        path = self.path_input.text().strip()
-        if not path or not os.path.exists(path):
+        path = _persistable_game_path(self.path_input.text())
+        if not _game_folder_state(self.path_input.text()):
             self.dlc_status.setText("Select valid game folder")
             self.update_btn.setEnabled(False)
             return
@@ -296,21 +376,29 @@ class LinuaUI(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select The Sims 4 Folder", _browse_default_dir(self.path_input.text()))
         if folder:
             self.path_input.setText(folder)
-            self.config.set("game_path", folder)
+            self._persist_valid_path(folder)
             self.logger.log(f"Selected: {folder}")
 
     def auto_detect(self):
         if self.is_closing:
             return
-        self.logger.log("Searching for game...")
-        found_path = GameDetector.find_game()
-        if found_path:
-            self.path_input.setText(found_path)
-            self.config.set("game_path", found_path)
-            self.logger.log(f"Game found: {found_path}")
+        path = _persistable_game_path(self.path_input.text())
+        if not path:
+            self.logger.log("Searching for game...")
+            path = _resolve_detected_path(self.path_input.text())
+        if path:
+            self.logger.log(f"Game found: {path}")
+            self.path_input.setText(path)
+            self._persist_valid_path(path)
             self.update_dlc_status()
         else:
             self.logger.log("Game not found. Please select manually", "WARNING")
+
+    def _startup_detect(self):
+        if self.is_closing:
+            return
+        self.logger.log(_startup_detect_message(self.config.get("game_path", "")))
+        self.update_dlc_status()
 
     def detect_installed(self, game_path):
         installed = set()
