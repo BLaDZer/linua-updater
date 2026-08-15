@@ -1,7 +1,10 @@
+import os
+import types
 from pathlib import Path
 
 from linua_updater.core.detection import GameDetector
 from linua_updater.ui.main_window import (
+    LinuaUI,
     _browse_default_dir,
     _changed_valid_path,
     _game_folder_state,
@@ -11,6 +14,14 @@ from linua_updater.ui.main_window import (
     _startup_detect_message,
     _ui_font_family,
 )
+
+
+class _FakeConfig:
+    def __init__(self):
+        self.calls = []
+
+    def set(self, key, value):
+        self.calls.append((key, value))
 
 
 def test_browse_default_dir_empty_uses_home():
@@ -167,3 +178,32 @@ def test_startup_detect_message_invalid_folder():
     assert message != ""
     assert "not a valid game path" in message
     assert "Auto Detect" in message
+
+
+def test_startup_detect_message_whitespace_only():
+    message = _startup_detect_message("  \t  ")
+    assert "No game folder saved" in message
+    assert "Auto Detect" in message
+
+
+def test_game_folder_state_dir_with_trailing_slash(tmp_path):
+    (tmp_path / "Game" / "Bin").mkdir(parents=True)
+    (tmp_path / "Game" / "Bin" / "TS4_x64.exe").touch()
+    assert _game_folder_state(str(tmp_path) + os.sep) is True
+
+
+def test_persist_valid_path_returns_none_for_invalid():
+    fake_config = _FakeConfig()
+    obj = types.SimpleNamespace(config=fake_config)
+    assert LinuaUI._persist_valid_path(obj, "/no/such/game") is None
+    assert fake_config.calls == []
+
+
+def test_persist_valid_path_persists_and_returns(tmp_path):
+    (tmp_path / "Game" / "Bin").mkdir(parents=True)
+    (tmp_path / "Game" / "Bin" / "TS4_x64.exe").touch()
+    fake_config = _FakeConfig()
+    obj = types.SimpleNamespace(config=fake_config)
+    path = LinuaUI._persist_valid_path(obj, str(tmp_path))
+    assert path == str(tmp_path)
+    assert fake_config.calls == [("game_path", str(tmp_path))]

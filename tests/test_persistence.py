@@ -1,3 +1,6 @@
+import json
+import time
+
 import pytest
 
 from linua_updater.paths import AppPaths
@@ -33,4 +36,50 @@ def test_download_state_roundtrip(isolated_app_paths):
     assert loaded["remaining"] == ["GP01"]
     assert loaded["game_path"] == "/game"
     state.clear_state()
+    assert DownloadState().load_state() is None
+
+
+def test_download_queue_corrupted_file_returns_empty(isolated_app_paths):
+    (isolated_app_paths / "download_queue.json").write_text("{not json", encoding="utf-8")
+    queue = DownloadQueue()
+    assert queue.queue == {}
+    assert queue.get_incomplete() == {}
+
+
+def test_download_queue_add_overwrites(isolated_app_paths):
+    queue = DownloadQueue()
+    queue.add("EP01", "https://example.com/old", progress=10)
+    queue.add("EP01", "https://example.com/new", progress=55)
+    entry = queue.queue["EP01"]
+    assert entry["url"] == "https://example.com/new"
+    assert entry["progress"] == 55
+
+
+def test_download_queue_update_progress_unknown_is_noop(isolated_app_paths):
+    queue = DownloadQueue()
+    queue.update_progress("NOPE", 50)
+    assert queue.queue == {}
+    assert queue.get_incomplete() == {}
+
+
+def test_download_state_expired_returns_none(isolated_app_paths):
+    state = DownloadState()
+    state.save_state(["EP01"], completed=[], failed=[])
+    stale = {
+        "timestamp": time.time() - AppPaths.DOWNLOAD_STATE_DURATION - 10,
+        "total": ["EP01"],
+        "completed": [],
+        "failed": [],
+        "remaining": ["EP01"],
+    }
+    (isolated_app_paths / "download_state.json").write_text(json.dumps(stale))
+    assert DownloadState().load_state() is None
+
+
+def test_download_state_corrupted_returns_none(isolated_app_paths):
+    (isolated_app_paths / "download_state.json").write_text("{not json")
+    assert DownloadState().load_state() is None
+
+
+def test_download_state_missing_file_returns_none(isolated_app_paths):
     assert DownloadState().load_state() is None

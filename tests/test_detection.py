@@ -129,3 +129,31 @@ def test_find_game_first_wins_order(linux_env, tmp_path, monkeypatch):
     monkeypatch.setattr(GameDetector, "find_from_registry", lambda: [str(registry_game)])
 
     assert GameDetector.find_game() == str(registry_game)
+
+
+def test_has_valid_exe_missing_path():
+    assert GameDetector._has_valid_exe("/no/such") is False
+
+
+def test_parse_steam_library_paths_missing_vdf(tmp_path):
+    assert GameDetector._parse_steam_library_paths(tmp_path / "nope.vdf") == []
+
+
+def test_parse_steam_library_paths_malformed(tmp_path):
+    vdf = tmp_path / "garbage.vdf"
+    vdf.write_bytes(b"\xff\xfe\x00\x01\x02\x03")
+    assert GameDetector._parse_steam_library_paths(vdf) == []
+
+
+def test_steam_vdf_candidates_darwin(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert GameDetector._steam_vdf_candidates(tmp_path) == [
+        tmp_path / "Library" / "Application Support" / "Steam" / "steamapps" / "libraryfolders.vdf"
+    ]
+
+
+def test_find_game_returns_none_when_nothing_found(linux_env, monkeypatch):
+    monkeypatch.setattr(GameDetector, "find_from_registry", list)
+    monkeypatch.setattr(GameDetector, "find_from_steam", list)
+
+    assert GameDetector.find_game() is None

@@ -36,6 +36,13 @@ def test_matches_win32_protected():
     assert AdminElevator._matches_win32_protected(r"C:\Games\The Sims 4") is False
 
 
+def test_matches_win32_protected_boundaries():
+    assert AdminElevator._matches_win32_protected(r"C:\Program Files") is True
+    assert AdminElevator._matches_win32_protected(r"C:\Program Files\Steam") is True
+    assert AdminElevator._matches_win32_protected("C:\\Program Files\\Steam\\") is True
+    assert AdminElevator._matches_win32_protected(r"C:\program files\x") is True
+
+
 def test_elevate_never_raises_and_falls_back(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda name: None)
     if sys.platform == "win32":
