@@ -10,6 +10,8 @@ Modern DLC management tool for The Sims 4
 **Linua Updater** is a lightweight Windows application that simplifies installation, management, and verification of DLC content for *The Sims 4*.  
 The tool automates game folder detection, downloading, extraction, and validation while maintaining high reliability and clear, predictable behavior.
 
+It is a Python desktop application built with PyQt6 for the GUI and the `requests` library for networking, organized as a modular `linua_updater/` package (see [Architecture](docs/architecture.md)).
+
 ---
 
 ## **Features**
@@ -282,36 +284,67 @@ If your version behaves differently → you downloaded a **fake**.
 
 ## **For Developers**
 
+### **Repository layout**
+
+```
+linua_updater/         # application package (UI, workers, core services, utils, persistence)
+tests/                 # smoke tests for core logic (pytest)
+docs/                  # architecture overview + refactoring plan
+pyproject.toml         # project metadata, dependencies, pytest/ruff config
+build.spec             # PyInstaller spec file
+version.json           # update channel payload (version, download_url, changelog)
+```
+
 ### **Running from source**
 
 ```bash
-# Clone repository
-git clone https://github.com/l1ntol/lunia-dlc.git
-cd lunia-dlc
+# 1. Clone repository
+git clone https://github.com/l1ntol/linua-updater.git
+cd linua-updater
 
-# Install dependencies
-pip install PyQt6 requests
+# 2. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-# Run application
-python LinuaUpdater_v4.2.py
+# 3. Install the package and its dependencies (from pyproject.toml)
+pip install -e .
+
+# 4. Run the application
+python -m linua_updater
+# Headless machines / CI (no display):
+QT_QPA_PLATFORM=offscreen python -m linua_updater
+```
+
+### **Running tests**
+
+```bash
+pip install pytest
+python -m pytest tests/
+# 18 smoke tests: catalog size, zip-slip rejection, disk-space math,
+# config/persistence round-trips, semver comparison.
+```
+
+### **Linting**
+
+```bash
+pip install ruff
+ruff check linua_updater/
 ```
 
 ### **Building executable**
 
 ```bash
-# Install PyInstaller
 pip install pyinstaller
-
-# Build
-pyinstaller --onefile --windowed --icon=icon.ico --name="LinuaUpdater" LinuaUpdater_v4.2.py
-
-# Output: dist/LinuaUpdater.exe
+pyinstaller --noconfirm build.spec
+# Output: dist/Linua-Updater (Linux) or dist/Linua-Updater.exe (Windows)
 ```
 
 ### **Dependencies**
 
+* Python >= 3.8
 * PyQt6 >= 6.4.0
 * requests >= 2.28.0
+* Dev only (optional): pytest, ruff, pyinstaller — `pip install -e ".[dev]"`
 
 ---
 

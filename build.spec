@@ -1,9 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
 
 a = Analysis(
-    ['LinuaUpdater_v4.3.0.py'],
-    pathex=[],
+    ['linua_updater/__main__.py'],
+    pathex=[os.path.dirname(os.path.abspath(SPEC))],
     binaries=[],
     datas=[],
     hiddenimports=[],
@@ -29,7 +31,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

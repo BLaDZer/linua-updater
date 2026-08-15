@@ -1,0 +1,53 @@
+[project]
+name = "linua-updater"
+version = "4.3.0"
+description = "Installs, verifies and removes DLC content for The Sims 4."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+dependencies = [
+    "requests",
+    "PyQt6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "pyinstaller",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["linua_updater*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py38"
+
+[tool.ruff.lint]
+# E501/E402: monolith lines are long and imports stay at module top for execution order.
+# The following rule classes are legacy, pre-existing defensive style carried over verbatim
+# from LinuaUpdater_v4.3.0.py (bare/blind except, try-except-pass/continue, naive datetimes,
+# dict-iterator style). They are intentionally preserved during this mechanical split; a
+# dedicated housekeeping task should migrate them to specific exceptions.
+extend-ignore = [
+    "E501", "E402",
+    "E722",          # bare except
+    "BLE001",        # blind Exception catch
+    "S110", "S112",  # try-except-pass / try-except-continue
+    "F841",          # unused variables kept for API symmetry
+    "RUF059",        # unused unpacked variables
+    "DTZ005",        # datetime.now() without tzinfo
+    "PERF102",       # dict key == None iterations
+    "PLW1510",       # subprocess.run without check
+    "RUF012",        # mutable class defaults
+    "SIM102", "SIM118",
+]
