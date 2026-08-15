@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-Linua Updater is a lightweight Windows desktop application that installs, verifies, and removes DLC content for *The Sims 4*. It is a single-file Python application using PyQt6 for the GUI and the `requests` library for networking.
+Linua Updater is a lightweight Windows desktop application that installs, verifies, and removes DLC content for *The Sims 4*. It is a Python desktop application using PyQt6 for the GUI and the `requests` library for networking, organized as a modular package (see Module layout).
 
 | Aspect | Detail |
 | --- | --- |
@@ -170,6 +170,22 @@ Pause/Resume is fully wired: the Pause button suspends active downloads, and a s
 
 - `build.spec` compiles `linua_updater/__main__.py` into `Linua-Updater` with UPX compression, windowed mode (`console=False`), no external data files.
 - Manual build: `pip install pyinstaller requests PyQt6 && pyinstaller --noconfirm build.spec`.
+
+### Running & testing from source
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e .                                    # installs requests + PyQt6
+
+python -m linua_updater                              # run the GUI
+QT_QPA_PLATFORM=offscreen python -m linua_updater    # run without a display (CI/dev)
+
+pip install -e ".[dev]"                              # pytest, ruff, pyinstaller
+python -m pytest tests/                              # 18 smoke tests (core logic)
+ruff check linua_updater/                            # lint
+```
+
+Tests cover the non-GUI core logic (catalog size, zip-slip rejection, disk-space math, config/persistence round-trips, semver comparison); PyQt6 is only required to import/run the UI and worker modules.
 
 ### CI/CD (GitHub Actions)
 
