@@ -98,6 +98,8 @@ class InstallWorker(QObject):
         info = self.db.all().get(dlc_id)
         if not info:
             return dlc_id, False, "DLC not found in database"
+        if self._cancelled:
+            return dlc_id, False, "Cancelled"
         downloader = SmartDownloader(self.logger, use_proxy=self.settings.get('use_proxy', True), resume=self.settings.get('resume_downloads', True), cleanup=self.settings.get('cleanup_temp', True), mirrors=self.mirrors)
         with self._active_downloaders_lock:
             self._active_downloaders.append(downloader)

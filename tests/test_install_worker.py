@@ -49,6 +49,21 @@ def test_install_single_unknown_dlc(worker, tmp_path):
     assert "DLC not found in database" in msg
 
 
+def test_install_single_cancelled_returns_cancelled(worker, tmp_path):
+    worker.db = FakeDb({"EP01": {"magnet": "magnet:?xt=foo", "url": "http://example.com/EP01.zip"}})
+    worker.logger = None
+    worker.game_path = tmp_path
+    worker.settings = {}
+    worker.mirrors = {}
+    worker._cancelled = True
+    worker._active_downloaders = []
+    dlc_id, ok, msg = worker._install_single("EP01")
+    assert dlc_id == "EP01"
+    assert ok is False
+    assert msg == "Cancelled"
+    assert worker._active_downloaders == []
+
+
 def test_save_download_state_writes_queue_and_state(worker, tmp_path):
     queue = FakeQueue()
     state = FakeState()

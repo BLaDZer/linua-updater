@@ -133,6 +133,8 @@ class TorrentDownloader:
             return False, "aria2c not found"
 
         try:
+            if self._cancelled:            # cancel() beat download() to the start → no download
+                return False, "Cancelled"
             self._cancelled = False
             self._out_dir = out_dir
             os.makedirs(out_dir, exist_ok=True)
@@ -141,6 +143,8 @@ class TorrentDownloader:
             last_progress = 0
 
             while True:  # outer restart loop — pause terminates, resume restarts
+                if self._cancelled:        # never re-launch aria2c after a cancel (also after resume/pause)
+                    return False, "Cancelled"
                 try:
                     self._process = subprocess.Popen(
                         cmd,

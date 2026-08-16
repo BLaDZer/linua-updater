@@ -110,6 +110,15 @@ def _ui_font_family():
     return "'Segoe UI','Noto Sans','Arial',sans-serif"
 
 
+def _install_in_progress(install_worker, install_thread):
+    """Return ``True`` while an install worker or its thread is still alive.
+
+    A new install must not start until the previous install ``QThread`` has
+    actually finished and been torn down by ``on_install_finished``.
+    """
+    return install_worker is not None or install_thread is not None
+
+
 class LinuaUI(QMainWindow):
     def __init__(self, config, db):
         super().__init__()
@@ -127,6 +136,7 @@ class LinuaUI(QMainWindow):
         self.extractor = Extractor(self.logger)
         self.install_thread = None
         self.install_worker = None
+        self._cancel_requested = False
         self._update_thread = None
         self._diag_thread = None
         self.progress_total = 0
@@ -486,6 +496,9 @@ class LinuaUI(QMainWindow):
 
     def start_parallel_install(self, selected, path):
         self.logger.log(f"Installing {len(selected)} DLC (using {self.settings.get('max_threads', 3)} threads)")
+        if _install_in_progress(self.install_worker, self.install_thread):
+            self.logger.log("Install already in progress", "WARNING")
+            return
         self.progress_total = len(selected)
         self.progress_done = 0
         self.successful_count = 0
@@ -571,24 +584,34 @@ class LinuaUI(QMainWindow):
 
     @pyqtSlot()
     def on_install_finished(self):
-        self.logger.log("Installation complete!")
-        self.download_progress.setValue(100)
-        self.download_detail.setText("Installation complete!")
-        QTimer.singleShot(1000, self.reset_ui_after_install)
-
-        if self.failed_count == 0:
-            completion_dlg = CompletionDialog(self)
-            completion_dlg.exec()
-        else:
-            msg = f"Installation finished:\n\nSuccessful: {self.successful_count}\nFailed: {self.failed_count}\n\nCheck log for details."
-            QMessageBox.warning(self, "Installation Complete", msg)
-
-        self.update_dlc_status()
         if self.install_thread:
             self.install_thread.quit()
             self.install_thread.wait()
             self.install_thread = None
             self.install_worker = None
+        try:
+            self.update_dlc_status()
+            if self._cancel_requested:
+                self._cancel_requested = False
+                self.logger.log("Installation cancelled", "WARNING")
+                if not self.is_closing:
+                    QMessageBox.information(self, "Installation Cancelled", "Installation has been cancelled.")
+                self.reset_ui_after_install()
+            else:
+                self.logger.log("Installation complete!")
+                self.download_progress.setValue(100)
+                self.download_detail.setText("Installation complete!")
+                if self.is_closing:
+                    return
+                if self.failed_count == 0:
+                    completion_dlg = CompletionDialog(self)
+                    completion_dlg.exec()
+                else:
+                    msg = f"Installation finished:\n\nSuccessful: {self.successful_count}\nFailed: {self.failed_count}\n\nCheck log for details."
+                    QMessageBox.warning(self, "Installation Complete", msg)
+                QTimer.singleShot(1000, self.reset_ui_after_install)
+        except Exception as e:
+            self.logger.log(f"Error finishing install: {e!s}", "ERROR")
 
     def reset_ui_after_install(self):
         if self.is_closing:
@@ -609,6 +632,7 @@ class LinuaUI(QMainWindow):
             self.pause_btn.setText("Pause")
         self.cancel_btn.setVisible(False)
         self.cancel_btn.setEnabled(False)
+        self.cancel_btn.setText("Cancel")
         self.settings_btn.setEnabled(True)
         self.export_logs_btn.setEnabled(True)
 
@@ -616,15 +640,9 @@ class LinuaUI(QMainWindow):
         if self.install_worker:
             self.logger.log("Cancelling installation...", "WARNING")
             self.install_worker.cancel()
+            self._cancel_requested = True
             self.cancel_btn.setText("Cancelling...")
             self.cancel_btn.setEnabled(False)
-            QTimer.singleShot(1000, self.show_cancelled_message)
-
-    def show_cancelled_message(self):
-        self.logger.log("Installation cancelled", "WARNING")
-        QMessageBox.information(self, "Installation Cancelled", "Installation has been cancelled.")
-        self.reset_ui_after_install()
-        self.update_dlc_status()
 
     def on_uninstall(self):
         """Handle uninstall button click"""

@@ -11,6 +11,7 @@ from linua_updater.ui.main_window import (
     _changed_valid_path,
     _game_folder_state,
     _game_placeholder,
+    _install_in_progress,
     _persistable_game_path,
     _resolve_detected_path,
     _startup_detect_message,
@@ -225,3 +226,73 @@ def test_completion_dialog_uses_fixed_size_constraint():
 def test_completion_dialog_warning_wrap_width_fixed():
     source = inspect.getsource(CompletionDialog)
     assert "setFixedWidth(390)" in source or "WARNING_WRAP_WIDTH" in source
+
+
+class _FakeLogger:
+    def log(self, text, level="INFO"):
+        pass
+
+
+class _FakeCancelButton:
+    def __init__(self):
+        self.text = "Cancel"
+        self.enabled = False
+
+    def setText(self, text):
+        self.text = text
+
+    def setEnabled(self, enabled):
+        self.enabled = enabled
+
+
+def test_install_in_progress_guard():
+    assert _install_in_progress(None, None) is False
+    assert _install_in_progress(object(), None) is True
+    assert _install_in_progress(None, object()) is True
+    assert _install_in_progress(object(), object()) is True
+
+
+def test_on_cancel_sets_cancel_requested():
+    cancelled = []
+
+    def fake_cancel():
+        cancelled.append(True)
+
+    install_worker = types.SimpleNamespace(cancel=fake_cancel)
+    obj = types.SimpleNamespace(
+        install_worker=install_worker,
+        logger=_FakeLogger(),
+        cancel_btn=_FakeCancelButton(),
+        _cancel_requested=False,
+    )
+    LinuaUI.on_cancel(obj)
+    assert obj._cancel_requested is True
+    assert cancelled == [True]
+    assert obj.cancel_btn.text == "Cancelling..."
+    assert obj.cancel_btn.enabled is False
+
+
+def test_on_cancel_without_worker_leaves_flag_unchanged():
+    obj = types.SimpleNamespace(
+        install_worker=None,
+        logger=_FakeLogger(),
+        cancel_btn=_FakeCancelButton(),
+        _cancel_requested=False,
+    )
+    LinuaUI.on_cancel(obj)
+    assert obj._cancel_requested is False
+    assert obj.cancel_btn.text == "Cancel"
+
+
+def test_on_install_finished_clears_cancel_requested():
+    obj = types.SimpleNamespace(
+        install_thread=None,
+        install_worker=None,
+        is_closing=True,
+        logger=_FakeLogger(),
+        _cancel_requested=True,
+        update_dlc_status=lambda: None,
+        reset_ui_after_install=lambda: None,
+    )
+    LinuaUI.on_install_finished(obj)
+    assert obj._cancel_requested is False

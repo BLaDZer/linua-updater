@@ -219,6 +219,25 @@ def test_download_progress_callback(tmp_path, monkeypatch):
     assert len(events) >= 2
 
 
+def test_download_cancelled_before_start_returns_cancelled(tmp_path, monkeypatch):
+    aria2c = tmp_path / "aria2c"
+    aria2c.write_text("")
+    popen_calls = []
+
+    def capturing_popen(*a, **kw):
+        popen_calls.append(a)
+        return FakeProcess(lines=["[#hash123 100MiB/100MiB(100%) CN:1 DL:1.0MiB]"], exit_code=0)
+
+    monkeypatch.setattr(subprocess, "Popen", capturing_popen)
+    out_dir = str(tmp_path / "out")
+    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl.cancel()  # cancel lands before download() starts
+    ok, result = dl.download("magnet:?xt=foo", out_dir)
+    assert ok is False
+    assert result == "Cancelled"
+    assert popen_calls == []
+
+
 def test_download_cancel_returns_cancelled(tmp_path, monkeypatch):
     aria2c = tmp_path / "aria2c"
     aria2c.write_text("")
