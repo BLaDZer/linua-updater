@@ -511,9 +511,14 @@ class LinuaUI(QMainWindow):
         self.install_worker.started.connect(self.on_install_started)
         self.install_worker.finished.connect(self.on_install_finished)
         self.install_worker.stats_ready.connect(self.on_stats_ready)
+        self.install_worker.log_updated.connect(self._on_worker_log)
         self.install_thread.started.connect(self.install_worker.run)
         self.install_thread.finished.connect(self.install_thread.deleteLater)
         self.install_thread.start()
+
+    @pyqtSlot(str, str)
+    def _on_worker_log(self, text, level="INFO"):
+        self.logger.log(text, level)
 
     @pyqtSlot(str, float, int, int)
     def on_progress_updated(self, dlc_id, progress, downloaded, total):

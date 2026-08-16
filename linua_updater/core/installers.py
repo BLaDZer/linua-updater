@@ -114,10 +114,10 @@ class MultiPartInstaller:
             if not parts:
                 return False, "No parts defined"
             total_parts = len(parts)
+            self.log(f"Downloading {self.dlc}: {total_parts} parts from: {', '.join(parts)}")
             for i, url in enumerate(parts):
                 name = f"{self.dlc}_{threading.get_ident()}.7z.{str(i+1).zfill(3)}"
                 out = os.path.join(tempfile.gettempdir(), name)
-                self.log(f"Downloading part {i+1}/{total_parts}...")
                 dlc_name = f"{self.dlc} Part {i+1}"
                 part_weight = 100.0 / total_parts
                 current_base = i * part_weight
@@ -128,6 +128,7 @@ class MultiPartInstaller:
                     self.dl.set_progress_callback(part_progress)
                 ok, reason = self.dl.download(url, out, dlc_name, resume=self.dl.resume_enabled)
                 if not ok:
+                    self.log(f"Part {i+1}/{total_parts} failed: {reason}", "WARNING")
                     for f in downloaded_files:
                         try:
                             os.remove(f)
@@ -141,6 +142,7 @@ class MultiPartInstaller:
                 part_size = os.path.getsize(out)
                 if part_size == 0:
                     return False, f"Part {i+1} is empty"
+                self.log(f"Part {i+1}/{total_parts} downloaded ({part_size/(1024*1024):.1f} MB)")
                 total_size += part_size
                 downloaded_files.append(out)
             part1 = downloaded_files[0]
@@ -195,7 +197,6 @@ class TorrentInstaller:
             if not magnet:
                 return False, "Magnet missing"
             temp = tempfile.mkdtemp(prefix=f"{self.dlc}_torrent_")
-            self.log("Starting torrent download...")
             dlc_name = f"{self.dlc} - {self.info.get('name', 'Unknown')}"
             expected_size = self.info.get("size")
             if self._progress_callback:

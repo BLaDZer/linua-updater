@@ -79,6 +79,14 @@ class FakeLogger:
         pass
 
 
+class RecordingLogger:
+    def __init__(self):
+        self.records = []
+
+    def log(self, text, level="INFO"):
+        self.records.append((text, level))
+
+
 @pytest.fixture
 def patch_finder(monkeypatch):
     import linua_updater.core.torrent_downloader as td
@@ -112,6 +120,79 @@ def test_download_success_cleans_artifacts(tmp_path, monkeypatch):
     ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=10 * 1024 * 1024)
     assert ok is True
     assert isinstance(result, list)
+
+
+def test_download_logs_start_and_complete(tmp_path, monkeypatch):
+    aria2c = tmp_path / "aria2c"
+    aria2c.write_text("")
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: FakeProcess(
+        lines=["[#hash123 10MiB/10MiB(100%) CN:1 DL:1.0MiB]"],
+        exit_code=0,
+    ))
+    out_dir = str(tmp_path / "out")
+    dl = TorrentDownloader(RecordingLogger(), aria2_path=str(aria2c), cleanup=True)
+    ok, result = dl.download("magnet:?xt=foo", out_dir, dlc_name="EP01")
+    assert ok is True
+    texts = [t for t, _ in dl.logger.records]
+    assert any("Starting torrent download: EP01 (magnet:?xt=foo)" in t for t in texts)
+    assert any("Torrent download complete: EP01" in t for t in texts)
+
+
+def test_missing_aria2_logs_warning(tmp_path):
+    out_dir = str(tmp_path / "out")
+    dl = TorrentDownloader(RecordingLogger(), aria2_path="/no/such/aria2c")
+    ok, result = dl.download("magnet:?xt=foo", out_dir)
+    assert ok is False
+    assert any(
+        "aria2c not found" in t.lower()
+        for t, lv in dl.logger.records
+        if lv == "WARNING"
+    )
+
+
+def test_nonzero_exit_logs_error(tmp_path, monkeypatch):
+    aria2c = tmp_path / "aria2c"
+    aria2c.write_text("")
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: FakeProcess(exit_code=1))
+    out_dir = str(tmp_path / "out")
+    dl = TorrentDownloader(RecordingLogger(), aria2_path=str(aria2c), cleanup=True)
+    ok, result = dl.download("magnet:?xt=foo", out_dir)
+    assert ok is False
+    assert any(
+        "aria2c exit code 1" in t
+        for t, lv in dl.logger.records
+        if lv == "ERROR"
+    )
+
+
+def test_cancel_logs_warning(tmp_path, monkeypatch):
+    aria2c = tmp_path / "aria2c"
+    aria2c.write_text("")
+    barrier = threading.Event()
+
+    def slow_process(*a, **kw):
+        barrier.wait(timeout=5)
+        return FakeProcess(lines=[], exit_code=0)
+
+    monkeypatch.setattr(subprocess, "Popen", slow_process)
+    out_dir = str(tmp_path / "out")
+    dl = TorrentDownloader(RecordingLogger(), aria2_path=str(aria2c), cleanup=True)
+
+    def cancel_later():
+        time.sleep(0.1)
+        dl.cancel()
+
+    t = threading.Thread(target=cancel_later)
+    t.start()
+    ok, result = dl.download("magnet:?xt=foo", out_dir)
+    t.join(timeout=2)
+    assert ok is False
+    assert result == "Cancelled"
+    assert any(
+        "Torrent download cancelled" in t
+        for t, lv in dl.logger.records
+        if lv == "WARNING"
+    )
 
 
 def test_download_progress_callback(tmp_path, monkeypatch):

@@ -105,15 +105,15 @@ All dialogs share a dark theme via inline Qt stylesheets.
 
 | Class | Responsibility |
 | --- | --- |
-| `SmartDownloader` | Downloads with retries (backoff), byte-level resume via `Range` header + `.part` temp files, slow-speed abort (<50 KB/s), proxy fallback, and mirror fallback; honors the `use_proxy`/`resume_downloads`/`cleanup_temp` settings and supports `pause()`/`resume()` via a `threading.Condition` in the chunk loop (also cancellable from pause). Exposes `resume()` as a method and stores the resume preference in `resume_enabled` (renamed to avoid shadowing the method) |
-| `TorrentDownloader` | Drives `aria2c` as a subprocess for magnet links; exposes the same `set_progress_callback`/`cancel`/`pause`/`resume`/`download` surface as `SmartDownloader`; parses `--summary-interval=1` output for progress callbacks; spawns `aria2c` with `CREATE_NO_WINDOW` on Windows and reaps the child on cancel/close |
+| `SmartDownloader` | Downloads with retries (backoff), byte-level resume via `Range` header + `.part` temp files, slow-speed abort (<50 KB/s), proxy fallback, and mirror fallback; honors the `use_proxy`/`resume_downloads`/`cleanup_temp` settings and supports `pause()`/`resume()` via a `threading.Condition` in the chunk loop (also cancellable from pause). Exposes `resume()` as a method and stores the resume preference in `resume_enabled` (renamed to avoid shadowing the method). Logs the download lifecycle (start `Downloading <display> from <source>`, pause/resume, finished `Downloaded <display> (N MB)`, and total failure) with **no** periodic progress lines |
+| `TorrentDownloader` | Drives `aria2c` as a subprocess for magnet links; exposes the same `set_progress_callback`/`cancel`/`pause`/`resume`/`download` surface as `SmartDownloader`; parses `--summary-interval=1` output for progress callbacks; spawns `aria2c` with `CREATE_NO_WINDOW` on Windows and reaps the child on cancel/close. Logs the lifecycle (start with the full magnet link, pause/resume, `aria2c not found`/exit-code, cancelled, complete) with **no** periodic progress lines |
 | `Extractor` | Extracts single ZIP archives (validated with `testzip()` and per-member path validation) or multipart 7-Zip archives via `7z.exe`; `extract_7z` runs the 7-Zip binary with `CREATE_NO_WINDOW` on Windows so no console window appears |
 | `SingleDLCInstaller` | Orchestrates download → extract for single-archive DLC |
-| `MultiPartInstaller` | Downloads each `.7z.001/002/...` part (weighted progress across parts), then extracts via 7-Zip; supported in code but not exercised by the shipped catalog |
+| `MultiPartInstaller` | Downloads each `.7z.001/002/...` part (weighted progress across parts), then extracts via 7-Zip; logs the part source list and per-part start/finish (via `SmartDownloader`) and per-part completion/failure; supported in code but not exercised by the shipped catalog |
 | `TorrentInstaller` | Downloads a magnet via `TorrentDownloader`, verifies checksums against `info['checksum']`, then extracts the archive through `Extractor`; falls back to `parts`/`url` on any failure |
 | `Aria2Finder` | Locates the `aria2c` executable at runtime (PyInstaller `_MEIPASS` → exe dir → common paths → PATH); mirrors `SevenZipFinder`'s pattern |
 | `ParallelInstallManager` | Genuinely parallel: a `ThreadPoolExecutor` (sized by `Settings.max_threads`) with one future per DLC; seeds all selected DLC at 0 and computes overall progress as the average over the total selected count |
-| `InstallWorker` | QThread-backed driver; submits one unit of work per DLC to the parallel manager, drains futures with `as_completed`, and emits per-DLC results and aggregated stats; exposes `pause()`/`resume()`/`cancel()` |
+| `InstallWorker` | QThread-backed driver; submits one unit of work per DLC to the parallel manager, drains futures with `as_completed`, and emits per-DLC results and aggregated stats; exposes `pause()`/`resume()`/`cancel()`. Its logger is a `SignalLogger` bound to the `log_updated` signal, so every worker-thread log line (including download lifecycle lines from the downloaders/installers) is relayed to the app-log widget on the main thread |
 | `UninstallWorker` | Deletes selected DLC folders off the UI thread |
 | `InstallationStats` | Records per-DLC size, duration, and errors; produces a final summary |
 
@@ -125,6 +125,8 @@ Each selected DLC is submitted as its own future to `ParallelInstallManager` and
 4. Extract into the game folder.
 5. Record stats/errors; remove temp files; emit `result_ready`.
 6. After all DLC: emit summary stats and finish signal.
+
+**App-log lifecycle lines.** `SmartDownloader`, `TorrentDownloader`, and `MultiPartInstaller` log the download lifecycle — start, pause, resume, finished — together with the DLC's source (`url`, the full magnet link, or the part links), with **no** periodic progress/percentage lines (the progress widget keeps being driven only by `progress_updated`/`overall_progress_updated`). Worker-thread `logger.log(...)` calls reach the app-log widget via `SignalLogger` → `InstallWorker.log_updated` → the main-window slot; the queued cross-thread signal runs the slot on the main thread, so `widget.append(...)` never happens from a worker thread while the file log keeps writing exactly as before.
 
 ---
 
@@ -148,7 +150,7 @@ Each selected DLC is submitted as its own future to `ParallelInstallManager` and
 | `AdminElevator` | Detects admin rights (`IsUserAnAdmin` on Windows, `euid==0` on POSIX) and restarts the app elevated via `ShellExecuteW` (Windows), `pkexec`/`sudo -A`/`gksudo` (Linux), or `osascript ... with administrator privileges` (macOS) when targeting protected paths; the capability check is a portable write-test |
 | `SevenZipFinder` | Locates 7-Zip across common OS paths and PATH (`7z.exe`/`7za.exe` on Windows, `7z`/`7za`/`7zz` on POSIX) via `shutil.which` |
 | `DiskSpaceChecker` | Computes per-DLC sizes by reading the DB `size` field first, falling back to the `SIZE_ESTIMATES` table and finally a default of 500 MB; totals with a 10% temp buffer and compares against free space |
-| `ImprovedLogger` | Writes timestamped color-coded lines to the UI and a rotating file logger (`updater.log`, 5 MB × 3) |
+| `ImprovedLogger` | Writes timestamped color-coded lines to the UI and a rotating file logger (`updater.log`, 5 MB × 3); worker-thread logs are relayed to the app-log widget by `SignalLogger` (a subclass bound to a callable emitter, used by `InstallWorker.log_updated`) with no changes to file logging |
 | `DownloadQueue` | JSON persistence for interrupted-download state |
 
 ---

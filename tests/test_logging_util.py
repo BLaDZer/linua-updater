@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from linua_updater import logging_util
-from linua_updater.logging_util import ImprovedLogger
+from linua_updater.logging_util import ImprovedLogger, SignalLogger
 from linua_updater.paths import AppPaths
 
 
@@ -75,3 +75,12 @@ def test_export_logs_copies_file(logger, isolated_app_paths, monkeypatch, tmp_pa
     assert ok
     assert Path(path).exists()
     assert "export me" in Path(path).read_text()
+
+
+def test_signal_logger_writes_file_and_emits(isolated_app_paths):
+    emitted = []
+    logger = SignalLogger(lambda text, level="INFO": emitted.append((text, level)))
+    logger.log("hello", "WARNING")
+    assert AppPaths.LOG_FILE.exists()
+    assert "hello" in AppPaths.LOG_FILE.read_text()
+    assert ("hello", "WARNING") in emitted

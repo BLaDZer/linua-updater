@@ -12,6 +12,14 @@ class FakeLogger:
         pass
 
 
+class RecordingLogger:
+    def __init__(self):
+        self.records = []
+
+    def log(self, text, level="INFO"):
+        self.records.append((text, level))
+
+
 class FakeResponse:
     def __init__(self, chunks=None, headers=None, status_code=200):
         self.chunks = list(chunks or [])
@@ -218,3 +226,62 @@ def test_set_proxy_clears_proxies(monkeypatch):
     assert session.proxies
     dl.set_proxy(None)
     assert session.proxies == {}
+
+
+def test_download_logs_start_line(tmp_path, monkeypatch):
+    dl, session = _make_downloader(monkeypatch, FakeResponse(chunks=[b"data"]))
+    dl.logger = RecordingLogger()
+    out = tmp_path / "file.zip"
+    ok, msg = dl.download("https://example.com/file.zip", str(out), dlc_name="EP01")
+    assert ok
+    texts = [t for t, _ in dl.logger.records]
+    assert any("Downloading EP01 from https://example.com/file.zip" in t for t in texts)
+
+
+def test_download_logs_finished_line(tmp_path, monkeypatch):
+    dl, session = _make_downloader(monkeypatch, FakeResponse(chunks=[b"x" * 2048]))
+    dl.logger = RecordingLogger()
+    out = tmp_path / "file.zip"
+    ok, msg = dl.download("https://example.com/file.zip", str(out), dlc_name="EP01")
+    assert ok
+    texts = [t for t, _ in dl.logger.records]
+    assert any("Downloaded EP01 (" in t and "MB" in t for t in texts)
+
+
+def test_download_logs_failure_warning(tmp_path, monkeypatch, no_sleep):
+    dl, session = _make_downloader(monkeypatch, FakeResponse(status_code=500))
+    dl.logger = RecordingLogger()
+    out = tmp_path / "file.zip"
+    ok, msg = dl.download("https://example.com/file.zip", str(out), dlc_name="EP01")
+    assert not ok
+    assert any(
+        "All download attempts failed" in t and "EP01" in t
+        for t, lv in dl.logger.records
+        if lv == "WARNING"
+    )
+
+
+def test_pause_logs_while_active():
+    dl = SmartDownloader(RecordingLogger())
+    dl._active = True
+    dl._display = "EP01"
+    dl._source = "https://example.com/file.zip"
+    dl.pause()
+    assert ("Paused EP01 from https://example.com/file.zip", "WARNING") in dl.logger.records
+
+
+def test_resume_logs_while_active():
+    dl = SmartDownloader(RecordingLogger())
+    dl._active = True
+    dl._display = "EP01"
+    dl._source = "https://example.com/file.zip"
+    dl.resume()
+    assert ("Resumed EP01 from https://example.com/file.zip", "INFO") in dl.logger.records
+
+
+def test_pause_resume_inactive_silent():
+    dl = SmartDownloader(RecordingLogger())
+    dl._active = False
+    dl.pause()
+    dl.resume()
+    assert dl.logger.records == []

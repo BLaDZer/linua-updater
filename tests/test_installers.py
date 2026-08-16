@@ -12,6 +12,14 @@ class FakeLogger:
         pass
 
 
+class RecordingLogger:
+    def __init__(self):
+        self.records = []
+
+    def log(self, text, level="INFO"):
+        self.records.append((text, level))
+
+
 class StubDownloader:
     def __init__(self, results, cleanup=True, resume=False):
         self.results = list(results)
@@ -234,6 +242,41 @@ def test_multipart_part_failure_cleans_up(temp_download_dir):
     assert len(stats.errors) == 1
     assert stats.errors[0]["dlc_id"] == "MP01"
     assert stats.errors[0]["error"] == "Part 2 failed: boom"
+
+
+def test_multipart_logs_source_and_part_progress(temp_download_dir):
+    seven = temp_download_dir / "7z"
+    seven.write_bytes(b"x")
+    dl = StubDownloader([(True, b"x" * 2048), (True, b"y" * 1024)])
+    ex = StubExtractor()
+    stats = InstallationStats()
+    parts = ["http://example.com/1.7z.001", "http://example.com/1.7z.002"]
+    logger = RecordingLogger()
+    installer = MultiPartInstaller("MP01", {"parts": parts}, str(temp_download_dir), dl, ex, str(seven), logger, stats)
+    ok, msg = installer.run()
+    assert ok is True
+    texts = [t for t, _ in logger.records]
+    assert any(all(part in t for part in parts) and "parts from" in t for t in texts)
+    assert any("Part 1/2 downloaded" in t for t in texts)
+    assert any("Part 2/2 downloaded" in t for t in texts)
+
+
+def test_multipart_logs_failure_reason(temp_download_dir):
+    seven = temp_download_dir / "7z"
+    seven.write_bytes(b"x")
+    dl = StubDownloader([(True, b"x" * 2048), (False, "boom")])
+    ex = StubExtractor()
+    stats = InstallationStats()
+    parts = ["http://example.com/1.7z.001", "http://example.com/1.7z.002"]
+    logger = RecordingLogger()
+    installer = MultiPartInstaller("MP01", {"parts": parts}, str(temp_download_dir), dl, ex, str(seven), logger, stats)
+    ok, msg = installer.run()
+    assert ok is False
+    assert any(
+        "Part 2/2 failed" in t and "boom" in t
+        for t, lv in logger.records
+        if lv == "WARNING"
+    )
 
 
 class StubTorrentDownloader:

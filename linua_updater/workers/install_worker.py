@@ -11,7 +11,7 @@ from linua_updater.core.installers import MultiPartInstaller, SingleDLCInstaller
 from linua_updater.core.models import InstallationStats
 from linua_updater.core.parallel import ParallelInstallManager
 from linua_updater.core.torrent_downloader import TorrentDownloader
-from linua_updater.logging_util import ImprovedLogger
+from linua_updater.logging_util import SignalLogger
 from linua_updater.persistence.download_queue import DownloadQueue
 from linua_updater.persistence.download_state import DownloadState
 from linua_updater.utils.sevenzip import SevenZipFinder
@@ -32,6 +32,7 @@ class InstallWorker(QObject):
     finished = pyqtSignal()
     result_ready = pyqtSignal(str, bool, str)
     stats_ready = pyqtSignal(dict)
+    log_updated = pyqtSignal(str, str)
     
     def __init__(self, dlc_ids, game_path, settings=None, mirrors=None):
         super().__init__()
@@ -42,7 +43,7 @@ class InstallWorker(QObject):
         self.max_workers = self.settings.get('max_threads', 3)
         self._cancelled = False
         self.parallel_manager = None
-        self.logger = ImprovedLogger()
+        self.logger = SignalLogger(self.log_updated.emit)
         self.db = DLCDatabase()
         self.logger.log(self.db.source_description(), "INFO")
         self.downloader = SmartDownloader(self.logger)

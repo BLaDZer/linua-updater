@@ -23,6 +23,9 @@ class TorrentDownloader:
         self._aria2_path = aria2_path or Aria2Finder(logger).find()
         self._cancelled = False
         self._paused = False
+        self._active = False
+        self._display = None
+        self._source = None
         self._progress_callback = None
         self._process = None
         self._command = None
@@ -60,10 +63,14 @@ class TorrentDownloader:
                     self._process.terminate()
                 except Exception:
                     pass
+        if self._active:
+            self.logger.log(f"Paused torrent download: {self._display}", "WARNING")
 
     def resume(self):
         with self._lock:
             self._paused = False
+        if self._active:
+            self.logger.log(f"Resumed torrent download: {self._display}")
 
     def _wait_for_resume(self):
         """Block until resume() or cancel(). Yields the GIL via sleep."""
@@ -115,89 +122,105 @@ class TorrentDownloader:
         return progress, downloaded, 0
 
     def download(self, magnet, out_dir, dlc_name=None, expected_size=None):
+        self._active = True
+        self._display = dlc_name or magnet
+        self._source = magnet
+        display = self._display
+        self.logger.log(f"Starting torrent download: {display} ({self._source})")
         if not self._aria2_path or not os.path.exists(self._aria2_path):
+            self._active = False
+            self.logger.log("Torrent download: aria2c not found", "WARNING")
             return False, "aria2c not found"
 
-        self._cancelled = False
-        self._out_dir = out_dir
-        os.makedirs(out_dir, exist_ok=True)
-        cmd = self._build_command(magnet, out_dir)
-        total_bytes = 0
-        last_progress = 0
+        try:
+            self._cancelled = False
+            self._out_dir = out_dir
+            os.makedirs(out_dir, exist_ok=True)
+            cmd = self._build_command(magnet, out_dir)
+            total_bytes = 0
+            last_progress = 0
 
-        while True:  # outer restart loop — pause terminates, resume restarts
-            try:
-                self._process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    bufsize=1,
-                    **_popen_kwargs(),
-                )
-            except Exception as e:
-                return False, str(e)
+            while True:  # outer restart loop — pause terminates, resume restarts
+                try:
+                    self._process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        bufsize=1,
+                        **_popen_kwargs(),
+                    )
+                except Exception as e:
+                    return False, str(e)
 
-            restart = False
-            try:
-                while True:
-                    line = self._process.stdout.readline()
-                    if not line:
-                        break
+                restart = False
+                try:
+                    while True:
+                        line = self._process.stdout.readline()
+                        if not line:
+                            break
+                        if self._cancelled:
+                            self.logger.log(f"Torrent download cancelled: {display}", "WARNING")
+                            return False, "Cancelled"
+                        if self._paused:
+                            restart = True  # halt; restart below once resumed
+                            break
+                        parsed = self._parse_summary(line)
+                        if parsed and parsed[0] is not None:
+                            progress, downloaded, total = parsed
+                            if total == 0 and expected_size:
+                                total = expected_size
+                            total_bytes = max(total_bytes, downloaded)
+                            if progress != last_progress and self._progress_callback:
+                                self._progress_callback(progress, downloaded, total)
+                                last_progress = progress
+                except Exception:
+                    pass
+
+                if restart:
+                    # loop hit a summary line while paused → wait, then restart
+                    self._wait_for_resume()
                     if self._cancelled:
+                        self.logger.log(f"Torrent download cancelled: {display}", "WARNING")
                         return False, "Cancelled"
-                    if self._paused:
-                        restart = True  # halt; restart below once resumed
-                        break
-                    parsed = self._parse_summary(line)
-                    if parsed and parsed[0] is not None:
-                        progress, downloaded, total = parsed
-                        if total == 0 and expected_size:
-                            total = expected_size
-                        total_bytes = max(total_bytes, downloaded)
-                        if progress != last_progress and self._progress_callback:
-                            self._progress_callback(progress, downloaded, total)
-                            last_progress = progress
+                    self._process.wait()  # reap the terminated child
+                    self._process = None
+                    continue  # re-run the command; --continue=true resumes from .aria2
+
+                exit_code = self._process.wait()
+                self._process = None
+                if self._cancelled:
+                    self.logger.log(f"Torrent download cancelled: {display}", "WARNING")
+                    return False, "Cancelled"
+                if self._paused:
+                    # readline hit EOF because pause() terminated the process → wait, then restart
+                    self._wait_for_resume()
+                    if self._cancelled:
+                        self.logger.log(f"Torrent download cancelled: {display}", "WARNING")
+                        return False, "Cancelled"
+                    continue
+                if exit_code != 0:
+                    self.logger.log(f"aria2c exit code {exit_code}", "ERROR")
+                    return False, f"aria2c exit code {exit_code}"
+                break  # completed normally
+
+            completed_files = []
+            try:
+                for f in os.listdir(out_dir):
+                    if f.endswith((".aria2", ".torrent")):
+                        try:
+                            os.remove(os.path.join(out_dir, f))
+                        except Exception:
+                            pass
+                    else:
+                        fp = os.path.join(out_dir, f)
+                        if os.path.isfile(fp):
+                            completed_files.append(fp)
             except Exception:
                 pass
 
-            if restart:
-                # loop hit a summary line while paused → wait, then restart
-                self._wait_for_resume()
-                if self._cancelled:
-                    return False, "Cancelled"
-                self._process.wait()  # reap the terminated child
-                self._process = None
-                continue  # re-run the command; --continue=true resumes from .aria2
-
-            exit_code = self._process.wait()
-            self._process = None
-            if self._cancelled:
-                return False, "Cancelled"
-            if self._paused:
-                # readline hit EOF because pause() terminated the process → wait, then restart
-                self._wait_for_resume()
-                if self._cancelled:
-                    return False, "Cancelled"
-                continue
-            if exit_code != 0:
-                return False, f"aria2c exit code {exit_code}"
-            break  # completed normally
-
-        completed_files = []
-        try:
-            for f in os.listdir(out_dir):
-                if f.endswith((".aria2", ".torrent")):
-                    try:
-                        os.remove(os.path.join(out_dir, f))
-                    except Exception:
-                        pass
-                else:
-                    fp = os.path.join(out_dir, f)
-                    if os.path.isfile(fp):
-                        completed_files.append(fp)
-        except Exception:
-            pass
-
-        completed_files.sort()
-        return True, completed_files
+            completed_files.sort()
+            self.logger.log(f"Torrent download complete: {display}")
+            return True, completed_files
+        finally:
+            self._active = False

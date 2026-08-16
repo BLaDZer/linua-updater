@@ -20,6 +20,9 @@ class SmartDownloader:
         self.session.headers.update({'User-Agent': 'Linua-Updater/' + APP_VERSION})
         self._cancelled = False
         self._paused = False
+        self._active = False
+        self._display = None
+        self._source = None
         self._pause_cond = threading.Condition()
         self._progress_callback = None
         self.min_speed_threshold = 50 * 1024  # 50 KB/s minimum speed
@@ -43,14 +46,28 @@ class SmartDownloader:
     def pause(self):
         with self._pause_cond:
             self._paused = True
+        if self._active:
+            self.logger.log(f"Paused {self._display} from {self._source}", "WARNING")
 
     def resume(self):
         with self._pause_cond:
             self._paused = False
             self._pause_cond.notify_all()
+        if self._active:
+            self.logger.log(f"Resumed {self._display} from {self._source}")
+
+    def _log_downloaded(self, out_path):
+        try:
+            size = os.path.getsize(out_path)
+        except OSError:
+            size = 0
+        self.logger.log(f"Downloaded {self._display} ({size / (1024 * 1024):.1f} MB)")
 
     def download(self, url, out_path, dlc_name=None, resume=False, expected_size=None):
-        display = dlc_name or url
+        self._active = True
+        self._display = dlc_name or url
+        self._source = url
+        self.logger.log(f"Downloading {self._display} from {self._source}")
         temp_path = out_path + ".part"
         downloaded = 0
 
@@ -60,6 +77,8 @@ class SmartDownloader:
 
         success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
         if success:
+            self._log_downloaded(out_path)
+            self._active = False
             return True, "OK"
 
         if self.diagnostics and self.diagnostics.working_proxies and self.use_proxy:
@@ -67,6 +86,8 @@ class SmartDownloader:
                 self.set_proxy(proxy)
                 success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
                 if success:
+                    self._log_downloaded(out_path)
+                    self._active = False
                     return True, "Downloaded via proxy"
 
         mirrors = self.mirrors
@@ -76,8 +97,12 @@ class SmartDownloader:
                 self.set_proxy(None)
                 success, msg = self._try_download_with_retry(mirror_url, out_path, temp_path, downloaded, expected_size)
                 if success:
+                    self._log_downloaded(out_path)
+                    self._active = False
                     return True, "Downloaded via mirror"
 
+        self._active = False
+        self.logger.log(f"All download attempts failed: {self._display} from {self._source}", "WARNING")
         return False, "All download attempts failed"
 
     def _try_download_with_retry(self, url, out_path, temp_path, start_byte=0, expected_size=None, max_retries=3):

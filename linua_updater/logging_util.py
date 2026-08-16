@@ -111,3 +111,21 @@ class ImprovedLogger:
             return True, str(export_path)
         except Exception as e:
             return False, str(e)
+
+
+class SignalLogger(ImprovedLogger):
+    """ImprovedLogger that also forwards every log line to a callable emitter.
+
+    Used by worker threads to relay log output to the main thread via a queued
+    Qt signal: ``log()`` writes to the file logger as usual, then invokes the
+    emitter with ``(text, level)``.
+    """
+
+    def __init__(self, emitter, widget=None):
+        super().__init__(widget=widget)
+        self._emitter = emitter
+
+    def log(self, text, level="INFO"):
+        super().log(text, level)
+        if callable(self._emitter):
+            self._emitter(text, level)

@@ -2,6 +2,8 @@ import threading
 
 import pytest
 
+from linua_updater.logging_util import SignalLogger
+from linua_updater.paths import AppPaths
 from linua_updater.workers.install_worker import InstallWorker, installer_kind
 
 
@@ -122,3 +124,19 @@ def test_cancel_does_not_resume(worker):
     worker.cancel()
     assert len(cancel_called) == 1
     assert len(resume_called) == 0
+
+
+def test_worker_logger_is_signal_logger(worker, tmp_path, monkeypatch):
+    """The worker's logger is a SignalLogger forwarding to log_updated."""
+    from PyQt6.QtCore import QObject
+
+    QObject.__init__(worker)
+    monkeypatch.setattr(AppPaths, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(AppPaths, "LOG_DIR", tmp_path / "logs")
+    monkeypatch.setattr(AppPaths, "LOG_FILE", tmp_path / "logs" / "updater.log")
+    received = []
+    worker.log_updated.connect(lambda text, level: received.append((text, level)))
+    worker.logger = SignalLogger(worker.log_updated.emit)
+    worker.logger.log("hello", "WARNING")
+    assert isinstance(worker.logger, SignalLogger)
+    assert ("hello", "WARNING") in received
