@@ -256,9 +256,9 @@ def test_multipart_logs_source_and_part_progress(temp_download_dir):
     ok, msg = installer.run()
     assert ok is True
     texts = [t for t, _ in logger.records]
-    assert any(all(part in t for part in parts) and "parts from" in t for t in texts)
-    assert any("Part 1/2 downloaded" in t for t in texts)
-    assert any("Part 2/2 downloaded" in t for t in texts)
+    assert "MP01: Downloading MP01: 2 parts" in texts
+    assert not any("parts from" in t or "://" in t for t in texts)
+    assert not any("Part 1/2 downloaded" in t or "Part 2/2 downloaded" in t for t in texts)
 
 
 def test_multipart_logs_failure_reason(temp_download_dir):

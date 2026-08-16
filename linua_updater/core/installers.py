@@ -114,7 +114,7 @@ class MultiPartInstaller:
             if not parts:
                 return False, "No parts defined"
             total_parts = len(parts)
-            self.log(f"Downloading {self.dlc}: {total_parts} parts from: {', '.join(parts)}")
+            self.log(f"Downloading {self.dlc}: {total_parts} parts")
             for i, url in enumerate(parts):
                 name = f"{self.dlc}_{threading.get_ident()}.7z.{str(i+1).zfill(3)}"
                 out = os.path.join(tempfile.gettempdir(), name)
@@ -142,7 +142,6 @@ class MultiPartInstaller:
                 part_size = os.path.getsize(out)
                 if part_size == 0:
                     return False, f"Part {i+1} is empty"
-                self.log(f"Part {i+1}/{total_parts} downloaded ({part_size/(1024*1024):.1f} MB)")
                 total_size += part_size
                 downloaded_files.append(out)
             part1 = downloaded_files[0]
