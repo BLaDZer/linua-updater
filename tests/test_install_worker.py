@@ -119,6 +119,151 @@ def test_install_single_torrent_cancelled_no_fallback(worker, tmp_path, monkeypa
     assert direct_downloads == []
 
 
+def test_install_single_magnet_fallback_runs_once(worker, tmp_path, monkeypatch):
+    class FakeLogger:
+        def log(self, text, level="INFO"):
+            pass
+
+    worker.db = FakeDb({"EP01": {"magnet": "magnet:?xt=foo", "url": "http://example.com/EP01.zip"}})
+    worker.logger = FakeLogger()
+    worker.game_path = tmp_path
+    worker.settings = {}
+    worker.mirrors = {}
+    worker._cancelled = False
+    worker.stats = FakeStats()
+    worker.extractor = None
+    worker._active_downloaders = []
+
+    direct_downloads = []
+
+    class FakeTorrentDownloader:
+        def __init__(self, logger):
+            self.logger = logger
+
+        def cancel(self):
+            pass
+
+        def pause(self):
+            pass
+
+        def resume(self):
+            pass
+
+        def set_progress_callback(self, callback):
+            pass
+
+        def download(self, magnet, temp, dlc_name=None, expected_size=None):
+            return False, "bad torrent"
+
+    class FakeSmartDownloader:
+        resume_enabled = False
+        cleanup = False
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def set_progress_callback(self, callback):
+            pass
+
+        def download(self, url, out_path, *args, **kwargs):
+            direct_downloads.append(url)
+            return False, "All download attempts failed"
+
+    monkeypatch.setattr(
+        "linua_updater.workers.install_worker.TorrentDownloader",
+        FakeTorrentDownloader,
+    )
+    monkeypatch.setattr(
+        "linua_updater.workers.install_worker.SmartDownloader",
+        FakeSmartDownloader,
+    )
+
+    dlc_id, ok, msg = worker._install_single("EP01")
+    assert dlc_id == "EP01"
+    assert ok is False
+    assert msg == "All download attempts failed"
+    assert direct_downloads == ["http://example.com/EP01.zip"]
+    assert worker._active_downloaders == []
+
+
+def test_install_single_magnet_fallback_parts_runs_once(worker, tmp_path, monkeypatch):
+    class FakeLogger:
+        def log(self, text, level="INFO"):
+            pass
+
+    seven_path = tmp_path / "sevenzip"
+    seven_path.touch()
+
+    worker.db = FakeDb({
+        "EP01": {
+            "magnet": "magnet:?xt=foo",
+            "parts": ["http://example.com/1.7z.001", "http://example.com/2.7z.002"],
+        }
+    })
+    worker.logger = FakeLogger()
+    worker.game_path = tmp_path
+    worker.settings = {}
+    worker.mirrors = {}
+    worker._cancelled = False
+    worker.stats = FakeStats()
+    worker.extractor = None
+    worker._active_downloaders = []
+
+    direct_downloads = []
+
+    class FakeTorrentDownloader:
+        def __init__(self, logger):
+            self.logger = logger
+
+        def cancel(self):
+            pass
+
+        def pause(self):
+            pass
+
+        def resume(self):
+            pass
+
+        def set_progress_callback(self, callback):
+            pass
+
+        def download(self, magnet, temp, dlc_name=None, expected_size=None):
+            return False, "bad torrent"
+
+    class FakeSmartDownloader:
+        resume_enabled = False
+        cleanup = False
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def set_progress_callback(self, callback):
+            pass
+
+        def download(self, url, out_path, *args, **kwargs):
+            direct_downloads.append(url)
+            return False, "Part failed"
+
+    monkeypatch.setattr(
+        "linua_updater.workers.install_worker.TorrentDownloader",
+        FakeTorrentDownloader,
+    )
+    monkeypatch.setattr(
+        "linua_updater.workers.install_worker.SmartDownloader",
+        FakeSmartDownloader,
+    )
+    from linua_updater.utils.sevenzip import SevenZipFinder
+
+    monkeypatch.setattr(SevenZipFinder, "find", lambda self: str(seven_path))
+
+    dlc_id, ok, msg = worker._install_single("EP01")
+    assert dlc_id == "EP01"
+    assert ok is False
+    assert msg == "Part 1 failed: Part failed"
+    assert direct_downloads == ["http://example.com/1.7z.001"]
+    assert worker._active_downloaders == []
+
+
 def test_save_download_state_writes_queue_and_state(worker, tmp_path):
     queue = FakeQueue()
     state = FakeState()

@@ -137,6 +137,7 @@ class InstallWorker(QObject):
                             self._active_downloaders.remove(torrent_dl)
                         except ValueError:
                             pass
+                return dlc_id, success, message
             elif kind == "parts":
                 seven_finder = SevenZipFinder(self.logger)
                 seven_path = seven_finder.find()
