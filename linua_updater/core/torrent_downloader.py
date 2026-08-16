@@ -61,7 +61,7 @@ class TorrentDownloader:
             "--allow-overwrite=true",
             "--file-allocation=none",
             "--summary-interval=1",
-            "--check-integrity=false",
+            "--check-integrity=true",
         ]
         return cmd
 
