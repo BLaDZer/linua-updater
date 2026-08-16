@@ -3,10 +3,25 @@
 import os
 
 
+base_dir = os.path.dirname(os.path.abspath(SPEC))
+
+extra_binaries = []
+
+aria2_name = "aria2c.exe" if os.name == "nt" else "aria2c"
+aria2_bin = os.path.join(base_dir, "tools", aria2_name)
+if os.path.exists(aria2_bin):
+    extra_binaries.append((aria2_bin, "."))
+
+sevenzip_names = ["7z.exe", "7z.dll"] if os.name == "nt" else ["7zz"]
+for name in sevenzip_names:
+    sevenzip_bin = os.path.join(base_dir, "tools", name)
+    if os.path.exists(sevenzip_bin):
+        extra_binaries.append((sevenzip_bin, "."))
+
 a = Analysis(
     ['linua_updater/__main__.py'],
-    pathex=[os.path.dirname(os.path.abspath(SPEC))],
-    binaries=[],
+    pathex=[base_dir],
+    binaries=extra_binaries,
     datas=[],
     hiddenimports=[],
     hookspath=[],
@@ -16,17 +31,6 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
-
-aria2_name = "aria2c.exe" if os.name == "nt" else "aria2c"
-aria2_bin = os.path.join(os.path.dirname(os.path.abspath(SPEC)), "tools", aria2_name)
-if os.path.exists(aria2_bin):
-    a.binaries += [(aria2_bin, ".")]
-
-sevenzip_names = ["7z.exe", "7z.dll"] if os.name == "nt" else ["7zz"]
-for name in sevenzip_names:
-    sevenzip_bin = os.path.join(os.path.dirname(os.path.abspath(SPEC)), "tools", name)
-    if os.path.exists(sevenzip_bin):
-        a.binaries += [(sevenzip_bin, ".")]
 pyz = PYZ(a.pure)
 
 exe = EXE(
