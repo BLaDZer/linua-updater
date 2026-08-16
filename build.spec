@@ -21,6 +21,12 @@ aria2_name = "aria2c.exe" if os.name == "nt" else "aria2c"
 aria2_bin = os.path.join(os.path.dirname(os.path.abspath(SPEC)), "tools", aria2_name)
 if os.path.exists(aria2_bin):
     a.binaries += [(aria2_bin, ".")]
+
+sevenzip_names = ["7z.exe", "7z.dll"] if os.name == "nt" else ["7zz"]
+for name in sevenzip_names:
+    sevenzip_bin = os.path.join(os.path.dirname(os.path.abspath(SPEC)), "tools", name)
+    if os.path.exists(sevenzip_bin):
+        a.binaries += [(sevenzip_bin, ".")]
 pyz = PYZ(a.pure)
 
 exe = EXE(

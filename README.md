@@ -294,7 +294,7 @@ If your version behaves differently → you downloaded a **fake**.
 linua_updater/         # application package (UI, workers, core services, utils, persistence)
 tests/                 # smoke tests for core logic (pytest)
 docs/                  # architecture overview + refactoring plan
-tools/                 # aria2c binaries (excluded from git, bundled at build time)
+tools/                 # aria2c + 7-Zip binaries (excluded from git, bundled at build time)
 pyproject.toml         # project metadata, dependencies, pytest/ruff config
 build.spec             # PyInstaller spec file
 version.json           # update channel payload (version, download_url, changelog)
@@ -349,7 +349,7 @@ pyinstaller --noconfirm build.spec
 * Python >= 3.8
 * PyQt6 >= 6.4.0
 * requests >= 2.28.0
-* `aria2c` — bundled automatically (no separate installation needed)
+* `aria2c` and 7-Zip — bundled automatically (no separate installation needed)
 * Dev only (optional): pytest, ruff, pyinstaller — `pip install -e ".[dev]"`
 
 ---
@@ -360,7 +360,7 @@ pyinstaller --noconfirm build.spec
 * **Architecture:** x64
 * **Language:** Python 3.8+
 * **GUI Framework:** PyQt6
-* **Bundled binaries:** aria2c (for torrent downloads)
+* **Bundled binaries:** aria2c (for torrent downloads), 7-Zip (for multipart/`.001` extraction)
 * **No external dependencies** for packaged version
 
 ---

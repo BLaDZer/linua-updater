@@ -96,3 +96,14 @@ def test_manual_path_walk_finds_posix_binary(tmp_path, monkeypatch):
     monkeypatch.setattr(os, "environ", {"PATH": str(bin_dir)})
 
     assert SevenZipFinder(FakeLogger()).find() == str(seven)
+
+
+def test_meipass_wins_over_path(tmp_path, monkeypatch):
+    sevenzz = tmp_path / "7zz"
+    sevenzz.write_text("")
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "app")])
+    monkeypatch.setattr(SevenZipFinder, "POSSIBLE_LOCATIONS", [])
+    _stub_shutil(monkeypatch, lambda name: "/fake/from/path")
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+    assert SevenZipFinder(FakeLogger()).find() == str(sevenzz)

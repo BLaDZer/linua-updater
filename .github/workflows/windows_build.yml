@@ -33,6 +33,18 @@ jobs:
           New-Item -ItemType Directory -Force -Path tools | Out-Null
           Copy-Item "$env:RUNNER_TEMP\aria2\aria2-1.37.0-win-64bit-build1\aria2c.exe" -Destination "tools\aria2c.exe" -Force
 
+      - name: Download 7-Zip for bundling
+        run: |
+          $sevenBaseUrl = "https://github.com/ip7z/7zip/releases/download/26.02"
+          $sevenTemp = "$env:RUNNER_TEMP\7z"
+          New-Item -ItemType Directory -Force -Path $sevenTemp | Out-Null
+          Invoke-WebRequest -Uri "$sevenBaseUrl/7zr.exe" -OutFile "$sevenTemp\7zr.exe" -UseBasicParsing
+          Invoke-WebRequest -Uri "$sevenBaseUrl/7z2602-extra.7z" -OutFile "$sevenTemp\7z2602-extra.7z" -UseBasicParsing
+          & "$sevenTemp\7zr.exe" x "$sevenTemp\7z2602-extra.7z" "-o$sevenTemp" -y | Out-Null
+          New-Item -ItemType Directory -Force -Path tools | Out-Null
+          Copy-Item "$sevenTemp\x64\7z.exe" -Destination "tools\7z.exe" -Force
+          Copy-Item "$sevenTemp\x64\7z.dll" -Destination "tools\7z.dll" -Force
+
       - name: Build EXE
         run: scripts\build.bat
 

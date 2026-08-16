@@ -16,6 +16,14 @@ class SevenZipFinder:
         return ["7z", "7za", "7zz"]
 
     def find(self):
+        # 0. Check in PyInstaller bundle directory
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            for name in self._executable_names():
+                local = os.path.join(meipass, name)
+                if os.path.exists(local):
+                    return local
+
         # 1. Check in same directory as executable
         exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
         for name in self._executable_names():
