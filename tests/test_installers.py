@@ -3,8 +3,8 @@ import os
 import pytest
 
 from linua_updater.core import installers
-from linua_updater.core.installers import MultiPartInstaller, SingleDLCInstaller
-from linua_updater.core.models import InstallationStats
+from linua_updater.core.installers import MultiPartInstaller, SingleDLCInstaller, TorrentInstaller
+from linua_updater.core.models import DLCInfo, DownloadSource, InstallationStats
 
 
 class FakeLogger:
@@ -77,7 +77,9 @@ def temp_download_dir(tmp_path, monkeypatch):
 
 
 def _single(dlc_id, info, game_path, downloader, extractor, stats):
-    return SingleDLCInstaller(dlc_id, info, game_path, downloader, extractor, FakeLogger(), stats)
+    dlc = DLCInfo.from_entry(dlc_id, info)
+    source = dlc.getMainDownloadSource()
+    return SingleDLCInstaller(dlc_id, dlc, source, game_path, downloader, extractor, FakeLogger(), stats)
 
 
 def test_single_missing_url(tmp_path):
@@ -200,8 +202,21 @@ def test_single_cleanup_false_keeps_temp(temp_download_dir):
     assert os.path.exists(dl.out_paths[0]) is True
 
 
-def _multipart(dlc_id, info, game_path, downloader, extractor, seven_path, stats):
-    return MultiPartInstaller(dlc_id, info, game_path, downloader, extractor, seven_path, FakeLogger(), stats)
+def _parts_source(dlc):
+    if dlc.getMainDownloadSource() is not None and dlc.getMainDownloadSource().getType() == "parts":
+        return dlc.getMainDownloadSource()
+    for mirror in dlc.getMirrors():
+        if mirror.getType() == "parts":
+            return mirror
+    return None
+
+
+def _multipart(dlc_id, info, game_path, downloader, extractor, seven_path, stats, logger=None):
+    dlc = DLCInfo.from_entry(dlc_id, info)
+    source = _parts_source(dlc)
+    if source is None:
+        source = DownloadSource.parts([])
+    return MultiPartInstaller(dlc_id, dlc, source, game_path, downloader, extractor, seven_path, logger or FakeLogger(), stats)
 
 
 def test_multipart_missing_7z(temp_download_dir):
@@ -252,7 +267,7 @@ def test_multipart_logs_source_and_part_progress(temp_download_dir):
     stats = InstallationStats()
     parts = ["http://example.com/1.7z.001", "http://example.com/1.7z.002"]
     logger = RecordingLogger()
-    installer = MultiPartInstaller("MP01", {"parts": parts}, str(temp_download_dir), dl, ex, str(seven), logger, stats)
+    installer = _multipart("MP01", {"parts": parts}, str(temp_download_dir), dl, ex, str(seven), stats, logger)
     ok, msg = installer.run()
     assert ok is True
     texts = [t for t, _ in logger.records]
@@ -269,7 +284,7 @@ def test_multipart_logs_failure_reason(temp_download_dir):
     stats = InstallationStats()
     parts = ["http://example.com/1.7z.001", "http://example.com/1.7z.002"]
     logger = RecordingLogger()
-    installer = MultiPartInstaller("MP01", {"parts": parts}, str(temp_download_dir), dl, ex, str(seven), logger, stats)
+    installer = _multipart("MP01", {"parts": parts}, str(temp_download_dir), dl, ex, str(seven), stats, logger)
     ok, msg = installer.run()
     assert ok is False
     assert any(
@@ -299,9 +314,21 @@ class StubTorrentDownloader:
         return ok, payload
 
 
+def _magnet_source(dlc):
+    if dlc.getMainDownloadSource() is not None and dlc.getMainDownloadSource().getType() == "magnet":
+        return dlc.getMainDownloadSource()
+    for mirror in dlc.getMirrors():
+        if mirror.getType() == "magnet":
+            return mirror
+    return None
+
+
 def _torrent(dlc_id, info, game_path, downloader, extractor, stats):
-    from linua_updater.core.installers import TorrentInstaller
-    return TorrentInstaller(dlc_id, info, game_path, downloader, extractor, FakeLogger(), stats)
+    dlc = DLCInfo.from_entry(dlc_id, info)
+    source = _magnet_source(dlc)
+    if source is None:
+        source = DownloadSource.magnet(None)
+    return TorrentInstaller(dlc_id, dlc, source, game_path, downloader, extractor, FakeLogger(), stats)
 
 
 def test_torrent_missing_magnet(temp_download_dir):

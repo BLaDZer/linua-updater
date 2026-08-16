@@ -341,7 +341,7 @@ class DLCSelector(QDialog):
         self.install_btn.setEnabled(True)
 
         for dlc_id, info in sorted(available):
-            cb = QCheckBox(f"[{dlc_id}] {info['name']}")
+            cb = QCheckBox(f"[{dlc_id}] {info.getName()}")
             cb.setStyleSheet("color:white;font-size:11px;")
             cb.stateChanged.connect(self.update_install_button)
             self.layout_c.addWidget(cb)
@@ -456,8 +456,8 @@ class UninstallDialog(QDialog):
             return
         db = DLCDatabase()
         for dlc_id in sorted(self.installed_dlc):
-            info = db.all().get(dlc_id)
-            name = info.get('name', 'Unknown') if info else 'Unknown'
+            info = db.get(dlc_id)
+            name = info.getName() if info else 'Unknown'
             cb = QCheckBox(f"[{dlc_id}] {name}")
             cb.setStyleSheet("color:white;font-size:11px;")
             cb.stateChanged.connect(self.update_uninstall_button)

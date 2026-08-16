@@ -8,9 +8,10 @@ from linua_updater.utils.sevenzip import SevenZipFinder
 
 
 class SingleDLCInstaller:
-    def __init__(self, dlc_id, info, game_path, downloader, extractor, logger, stats=None):
+    def __init__(self, dlc_id, info, source, game_path, downloader, extractor, logger, stats=None):
         self.dlc = dlc_id
         self.info = info
+        self.source = source
         self.game = game_path
         self.dl = downloader
         self.ex = extractor
@@ -30,15 +31,15 @@ class SingleDLCInstaller:
         temp = None
         try:
             self._start_time = time.time()
-            url = self.info.get("url")
+            url = self.source.getSource() if self.source else None
             if not url:
                 return False, "URL missing"
 
-            expected_size = self.info.get("size")  # Get size from database if available
+            expected_size = self.info.getSize()  # Get size from database if available
 
             temp = os.path.join(tempfile.gettempdir(), f"{self.dlc}_{int(time.time())}_{threading.get_ident()}.zip")
             self.log("Starting download...")
-            dlc_name = f"{self.dlc} - {self.info.get('name', 'Unknown')}"
+            dlc_name = f"{self.dlc} - {self.info.getName()}"
             if self._progress_callback:
                 self.dl.set_progress_callback(self._progress_callback)
             ok, reason = self.dl.download(url, temp, dlc_name, resume=self.dl.resume_enabled, expected_size=expected_size)
@@ -53,7 +54,7 @@ class SingleDLCInstaller:
                 return False, "Downloaded file is empty"
             if file_size < 1024:
                 return False, "Downloaded file too small (corrupted?)"
-            errors = verify_file_checksums(temp, self.info.get("checksum"))
+            errors = verify_file_checksums(temp, self.source.getCheckSums())
             if errors:
                 for error in errors:
                     self.log(error, "WARNING")
@@ -84,9 +85,10 @@ class SingleDLCInstaller:
 
 
 class MultiPartInstaller:
-    def __init__(self, dlc_id, info, game_path, downloader, extractor, seven_path, logger, stats=None):
+    def __init__(self, dlc_id, info, source, game_path, downloader, extractor, seven_path, logger, stats=None):
         self.dlc = dlc_id
         self.info = info
+        self.source = source
         self.game = game_path
         self.dl = downloader
         self.ex = extractor
@@ -110,12 +112,13 @@ class MultiPartInstaller:
             self._start_time = time.time()
             if not self.seven or not os.path.exists(self.seven):
                 return False, "7-Zip not found"
-            parts = self.info.get("parts", [])
+            parts = self.source.getParts() if self.source else None
             if not parts:
                 return False, "No parts defined"
             total_parts = len(parts)
             self.log(f"Downloading {self.dlc}: {total_parts} parts")
-            for i, url in enumerate(parts):
+            for i, part in enumerate(parts):
+                url = part.getSource()
                 name = f"{self.dlc}_{threading.get_ident()}.7z.{str(i+1).zfill(3)}"
                 out = os.path.join(tempfile.gettempdir(), name)
                 dlc_name = f"{self.dlc} Part {i+1}"
@@ -170,9 +173,10 @@ class MultiPartInstaller:
 
 
 class TorrentInstaller:
-    def __init__(self, dlc_id, info, game_path, downloader, extractor, logger, stats=None):
+    def __init__(self, dlc_id, info, source, game_path, downloader, extractor, logger, stats=None):
         self.dlc = dlc_id
         self.info = info
+        self.source = source
         self.game = game_path
         self.dl = downloader
         self.ex = extractor
@@ -192,12 +196,12 @@ class TorrentInstaller:
         temp = None
         try:
             self._start_time = time.time()
-            magnet = self.info.get("magnet")
+            magnet = self.source.getSource() if self.source else None
             if not magnet:
                 return False, "Magnet missing"
             temp = tempfile.mkdtemp(prefix=f"{self.dlc}_torrent_")
-            dlc_name = f"{self.dlc} - {self.info.get('name', 'Unknown')}"
-            expected_size = self.info.get("size")
+            dlc_name = f"{self.dlc} - {self.info.getName()}"
+            expected_size = self.info.getSize()
             if self._progress_callback:
                 self.dl.set_progress_callback(lambda progress, downloaded, total: self._progress_callback(progress, downloaded, total))
             ok, result = self.dl.download(magnet, temp, dlc_name=dlc_name, expected_size=expected_size)
@@ -208,7 +212,7 @@ class TorrentInstaller:
             if not isinstance(result, list) or not result:
                 return False, "No files downloaded from torrent"
             primary = None
-            size_target = self.info.get("size")
+            size_target = self.info.getSize()
             if size_target:
                 candidates = [(f, os.path.getsize(f)) for f in result if os.path.isfile(f)]
                 for f, sz in candidates:
@@ -224,7 +228,7 @@ class TorrentInstaller:
             file_size = os.path.getsize(primary)
             if file_size == 0:
                 return False, "Downloaded file is empty"
-            errors = verify_file_checksums(primary, self.info.get("checksum"))
+            errors = verify_file_checksums(primary, self.source.getCheckSums())
             if errors:
                 for error in errors:
                     self.log(error, "WARNING")

@@ -5,6 +5,7 @@ import time
 import requests
 
 from linua_updater.constants import DEFAULT_DATABASE_FALLBACK, DEFAULT_DATABASE_URL, SIZE_ESTIMATES
+from linua_updater.core.models import DLCInfo
 from linua_updater.paths import AppPaths
 
 
@@ -31,6 +32,7 @@ class DLCDatabase:
         self.data = self._load()
         self.dlc = self.data.get("dlc", {})
         self._apply_sizes()
+        self._build_infos()
 
     def refresh(self):
         """Invalidate the cache file and reload, re-running the resolution order.
@@ -43,12 +45,16 @@ class DLCDatabase:
         self.data = self._load()
         self.dlc = self.data.get("dlc", {})
         self._apply_sizes()
+        self._build_infos()
         return self.source == "remote"
 
     def _apply_sizes(self):
         for dlc_id, info in self.dlc.items():
             if dlc_id in SIZE_ESTIMATES:
                 info['size'] = SIZE_ESTIMATES[dlc_id]
+
+    def _build_infos(self):
+        self._infos = {dlc_id: DLCInfo.from_entry(dlc_id, info) for dlc_id, info in self.dlc.items()}
 
     def _load(self):
         fresh = self._load_cache(fresh_only=True)
@@ -108,10 +114,10 @@ class DLCDatabase:
         return isinstance(dlc, dict) and len(dlc) > 0
 
     def all(self):
-        return self.dlc
+        return self._infos
 
     def get(self, dlc_id):
-        return self.dlc.get(dlc_id)
+        return self._infos.get(dlc_id)
 
     def get_key(self, key, default=None):
         """Return any top-level key of the remote database payload (e.g. ``version``)."""

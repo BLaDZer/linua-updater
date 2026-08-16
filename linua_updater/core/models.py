@@ -3,6 +3,155 @@ import time
 from datetime import datetime
 
 
+class CheckSums:
+    def __init__(self, sha256=None, sha1=None, md5=None):
+        self._sha256 = sha256
+        self._sha1 = sha1
+        self._md5 = md5
+
+    @classmethod
+    def from_dict(cls, raw):
+        if not isinstance(raw, dict):
+            return None
+        return cls(sha256=raw.get("sha256") or None, sha1=raw.get("sha1") or None, md5=raw.get("md5") or None)
+
+    def getSha256(self):
+        return self._sha256
+
+    def getSha1(self):
+        return self._sha1
+
+    def getMd5(self):
+        return self._md5
+
+    def get(self, alg):
+        if alg == "sha256":
+            return self._sha256
+        if alg == "sha1":
+            return self._sha1
+        if alg == "md5":
+            return self._md5
+        return None
+
+
+class DownloadSource:
+    def __init__(self, source_type, source=None, parts=None, checksums=None, priority=0):
+        self._type = source_type
+        self._source = source
+        self._parts = parts if parts is not None else []
+        self._checksums = checksums
+        self._priority = priority
+
+    @classmethod
+    def from_dict(cls, raw):
+        if not isinstance(raw, dict):
+            return None
+        source_type = raw.get("type")
+        if source_type not in ("url", "parts", "magnet"):
+            if "parts" in raw:
+                source_type = "parts"
+            elif "url" in raw:
+                source_type = "url"
+            elif "magnet" in raw:
+                source_type = "magnet"
+            else:
+                source_type = None
+        checksums = CheckSums.from_dict(raw.get("checksum"))
+        priority = raw.get("priority", 0)
+        if priority is None or isinstance(priority, bool):
+            priority = 0
+        elif not isinstance(priority, int):
+            try:
+                priority = int(priority)
+            except (TypeError, ValueError):
+                priority = 0
+        if source_type == "parts":
+            parts = []
+            for part in raw.get("parts") or []:
+                parsed = cls.from_dict(part)
+                if parsed is not None:
+                    parts.append(parsed)
+            return cls("parts", parts=parts, checksums=checksums, priority=priority)
+        if source_type == "url":
+            return cls("url", source=raw.get("url"), checksums=checksums, priority=priority)
+        if source_type == "magnet":
+            return cls("magnet", source=raw.get("magnet"), checksums=checksums, priority=priority)
+        return cls(source_type, checksums=checksums, priority=priority)
+
+    @classmethod
+    def url(cls, url, checksums=None, priority=0):
+        return cls("url", source=url, checksums=checksums, priority=priority)
+
+    @classmethod
+    def magnet(cls, magnet, checksums=None, priority=0):
+        return cls("magnet", source=magnet, checksums=checksums, priority=priority)
+
+    @classmethod
+    def parts(cls, part_sources, checksums=None, priority=0):
+        return cls("parts", parts=part_sources, checksums=checksums, priority=priority)
+
+    def getType(self):
+        return self._type
+
+    def getSource(self):
+        return self._source
+
+    def getParts(self):
+        return self._parts
+
+    def getCheckSums(self):
+        return self._checksums
+
+    def getPriority(self):
+        return self._priority
+
+
+class DLCInfo:
+    def __init__(self, dlc_id, name, size, main_source, mirrors):
+        self._id = dlc_id
+        self._name = name
+        self._size = size
+        self._main = main_source
+        self._mirrors = mirrors
+
+    @classmethod
+    def from_entry(cls, dlc_id, raw):
+        entry_checksums = CheckSums.from_dict(raw.get("checksum"))
+        main = None
+        if raw.get("url"):
+            main = DownloadSource.url(raw["url"], checksums=entry_checksums)
+        mirrors = []
+        if raw.get("magnet"):
+            mirrors.append(DownloadSource.magnet(raw["magnet"], checksums=entry_checksums))
+        if raw.get("parts"):
+            part_sources = [DownloadSource.url(p) for p in raw["parts"]]
+            mirrors.append(DownloadSource.parts(part_sources, checksums=entry_checksums))
+        for mirror in raw.get("mirrors") or []:
+            source = DownloadSource.from_dict(mirror)
+            if source is None:
+                continue
+            if source.getCheckSums() is None and entry_checksums is not None:
+                source._checksums = entry_checksums
+            mirrors.append(source)
+        mirrors.sort(key=lambda s: s.getPriority(), reverse=True)
+        return cls(dlc_id, raw.get("name", "Unknown"), raw.get("size"), main, mirrors)
+
+    def getId(self):
+        return self._id
+
+    def getName(self):
+        return self._name
+
+    def getSize(self):
+        return self._size
+
+    def getMainDownloadSource(self):
+        return self._main
+
+    def getMirrors(self):
+        return self._mirrors
+
+
 class InstallationStats:
     def __init__(self):
         self.lock = threading.Lock()

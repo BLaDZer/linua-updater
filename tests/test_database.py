@@ -62,15 +62,40 @@ def test_catalog_has_109_entries(isolated_db_env):
 
 def test_size_enrichment_from_estimates(isolated_db_env):
     db = DLCDatabase()
-    assert db.all()["EP01"]["size"] == 1900000000
-    assert db.all()["EP21"]["size"] == 2553349168
-    assert "size" not in db.all()["SP70"]
+    assert db.all()["EP01"].getSize() == 1900000000
+    assert db.all()["EP21"].getSize() == 2553349168
+    assert db.all()["SP70"].getSize() is None
 
 
 def test_get(isolated_db_env):
     db = DLCDatabase()
-    assert db.get("EP01")["name"] == "Get to Work"
+    assert db.get("EP01").getName() == "Get to Work"
     assert db.get("DOES_NOT_EXIST") is None
+
+
+def test_main_source_routing(isolated_db_env):
+    db = DLCDatabase()
+    ep01 = db.get("EP01")
+    main = ep01.getMainDownloadSource()
+    assert main is not None
+    assert main.getType() == "url"
+    assert main.getSource() == "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP01.zip"
+    assert ep01.getMirrors() == []
+
+
+def test_fallback_ep06_parts_mirror(isolated_db_env):
+    db = DLCDatabase()
+    ep06 = db.get("EP06")
+    main = ep06.getMainDownloadSource()
+    assert main is not None
+    assert main.getType() == "url"
+    parts_mirrors = [m for m in ep06.getMirrors() if m.getType() == "parts"]
+    assert len(parts_mirrors) == 1
+    parts_mirror = parts_mirrors[0]
+    assert parts_mirror.getPriority() == 0
+    parts = parts_mirror.getParts()
+    assert len(parts) == 7
+    assert all(p.getType() == "url" for p in parts)
 
 
 def test_fresh_cache_used_without_download(cache_file, monkeypatch):
@@ -84,7 +109,7 @@ def test_fresh_cache_used_without_download(cache_file, monkeypatch):
     monkeypatch.setattr("linua_updater.core.database.requests.get", fake_get)
     db = DLCDatabase()
     assert calls == []
-    assert db.all()["EP01"]["name"] == "Get to Work"
+    assert db.all()["EP01"].getName() == "Get to Work"
     assert db.data["version"] == "1.2.3"
     assert db.get_key("updatedAt") == "2026-08-15T00:00:00Z"
     assert db.source == "cache"
@@ -96,7 +121,7 @@ def test_fresh_cache_used_without_download(cache_file, monkeypatch):
 def test_size_enrichment_applied_to_cached_data(cache_file):
     _write_cache(cache_file, {"dlc": {"EP01": {"name": "Get to Work", "url": "x"}}})
     db = DLCDatabase()
-    assert db.all()["EP01"]["size"] == 1900000000
+    assert db.all()["EP01"].getSize() == 1900000000
 
 
 def test_expired_cache_triggers_download(cache_file, monkeypatch):
@@ -110,7 +135,7 @@ def test_expired_cache_triggers_download(cache_file, monkeypatch):
     monkeypatch.setattr("linua_updater.core.database.requests.get", fake_get)
     db = DLCDatabase()
     assert calls == [db.db_url]
-    assert db.all()["EP01"]["name"] == "Get to Work"
+    assert db.all()["EP01"].getName() == "Get to Work"
     saved = json.loads(cache_file.read_text(encoding="utf-8"))
     assert saved["database"]["version"] == "1.2.3"
     assert db.source == "remote"
@@ -123,7 +148,7 @@ def test_missing_cache_successful_download_writes_cache(cache_file, monkeypatch)
         lambda url, timeout=10: FakeResponse(200, _sample_payload()),
     )
     db = DLCDatabase()
-    assert db.all()["EP01"]["name"] == "Get to Work"
+    assert db.all()["EP01"].getName() == "Get to Work"
     assert db.get_key("version") == "1.2.3"
     saved = json.loads(cache_file.read_text(encoding="utf-8"))
     assert saved["database"] == _sample_payload()
@@ -133,7 +158,7 @@ def test_missing_cache_successful_download_writes_cache(cache_file, monkeypatch)
 def test_download_failure_stale_cache_used(cache_file):
     _write_cache(cache_file, {"dlc": {"EP01": {"name": "stale", "url": "x"}}}, timestamp=time.time() - 7200)
     db = DLCDatabase()
-    assert db.all()["EP01"]["name"] == "stale"
+    assert db.all()["EP01"].getName() == "stale"
     assert db.source == "stale_cache"
     message = db.source_description()
     assert str(db.cache_file) in message
@@ -144,8 +169,8 @@ def test_download_failure_no_cache_fallback(cache_file):
     db = DLCDatabase()
     assert set(db.all().keys()) == set(DEFAULT_DATABASE_FALLBACK["dlc"].keys())
     fallback_ep01 = DEFAULT_DATABASE_FALLBACK["dlc"]["EP01"]
-    assert db.all()["EP01"]["name"] == fallback_ep01["name"]
-    assert db.all()["EP01"]["url"] == fallback_ep01["url"]
+    assert db.all()["EP01"].getName() == fallback_ep01["name"]
+    assert db.all()["EP01"].getMainDownloadSource().getSource() == fallback_ep01["url"]
     assert not cache_file.exists()
     assert db.source == "fallback"
     assert "built-in fallback data" in db.source_description()
@@ -153,7 +178,7 @@ def test_download_failure_no_cache_fallback(cache_file):
 
 def test_broken_remote_missing_dlc_uses_fallback(cache_file):
     db = DLCDatabase()
-    assert db.all()["EP01"]["name"] == "Get to Work"
+    assert db.all()["EP01"].getName() == "Get to Work"
 
 
 def test_broken_remote_invalid_json_uses_fallback(cache_file, monkeypatch):
@@ -192,7 +217,7 @@ def test_refresh_with_fresh_cache_replaces_it_from_remote(cache_file, monkeypatc
     assert db.source == "cache"
     assert db.refresh() is True
     assert db.source == "remote"
-    assert db.all()["EP01"]["name"] == "Get to Work 2"
+    assert db.all()["EP01"].getName() == "Get to Work 2"
     assert db.get_key("version") == "9.9.9"
     saved = json.loads(cache_file.read_text(encoding="utf-8"))
     assert saved["database"] == expected
@@ -218,4 +243,4 @@ def test_refresh_reapplies_size_enrichment(cache_file, monkeypatch):
     )
     db = DLCDatabase()
     assert db.refresh() is True
-    assert db.all()["EP01"]["size"] == 1900000000
+    assert db.all()["EP01"].getSize() == 1900000000

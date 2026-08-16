@@ -11,9 +11,10 @@ class DiskSpaceChecker:
     def get_dlc_size(dlc_id):
         """Get estimated size for a DLC"""
         db = DLCDatabase()
-        info = db.all().get(dlc_id)
-        if info and info.get('size'):
-            return info['size']
+        info = db.get(dlc_id)
+        size = info.getSize() if info else None
+        if size:
+            return size
         return SIZE_ESTIMATES.get(dlc_id, 500000000)
     
     @staticmethod

@@ -17,10 +17,12 @@ from linua_updater.persistence.download_state import DownloadState
 from linua_updater.utils.sevenzip import SevenZipFinder
 
 
-def installer_kind(info):
-    if info and info.get("magnet"):
+def installer_kind(source):
+    if source is None:
+        return "single"
+    if source.getType() == "magnet":
         return "magnet"
-    if info and info.get("parts"):
+    if source.getType() == "parts":
         return "parts"
     return "single"
 
@@ -88,11 +90,24 @@ class InstallWorker(QObject):
         try:
             for dlc_id in self.dlc_ids:
                 info = self.db.all().get(dlc_id)
-                if info and info.get('url'):
-                    self._download_queue.add(dlc_id, info['url'], self.download_progress.get(dlc_id, 0))
+                main = info.getMainDownloadSource() if info else None
+                if main and main.getSource():
+                    self._download_queue.add(dlc_id, main.getSource(), self.download_progress.get(dlc_id, 0))
             self._download_state.save_state(self.dlc_ids, self._completed_ids, self._failed_ids, self.game_path)
         except Exception as e:
             self.logger.log(f"Failed to save download state: {e}", "ERROR")
+
+    def _build_installer(self, dlc_id, info, source, downloader):
+        kind = installer_kind(source)
+        if kind == "magnet":
+            return TorrentInstaller(dlc_id, info, source, self.game_path, downloader, self.extractor, self.logger, self.stats)
+        if kind == "parts":
+            seven_finder = SevenZipFinder(self.logger)
+            seven_path = seven_finder.find()
+            if not seven_path:
+                return None
+            return MultiPartInstaller(dlc_id, info, source, self.game_path, downloader, self.extractor, seven_path, self.logger, self.stats)
+        return SingleDLCInstaller(dlc_id, info, source, self.game_path, downloader, self.extractor, self.logger, self.stats)
 
     def _install_single(self, dlc_id):
         info = self.db.all().get(dlc_id)
@@ -100,64 +115,47 @@ class InstallWorker(QObject):
             return dlc_id, False, "DLC not found in database"
         if self._cancelled:
             return dlc_id, False, "Cancelled"
-        downloader = SmartDownloader(self.logger, use_proxy=self.settings.get('use_proxy', True), resume=self.settings.get('resume_downloads', True), cleanup=self.settings.get('cleanup_temp', True), mirrors=self.mirrors)
-        with self._active_downloaders_lock:
-            self._active_downloaders.append(downloader)
         try:
-            kind = installer_kind(info)
-            if kind == "magnet":
-                torrent_dl = TorrentDownloader(self.logger)
+            sources = []
+            main = info.getMainDownloadSource()
+            if main is not None:
+                sources.append(main)
+            sources.extend(info.getMirrors())
+            last_message = None
+            for source in sources:
+                if self._cancelled:
+                    return dlc_id, False, "Cancelled"
+                if source.getType() == "magnet":
+                    downloader = TorrentDownloader(self.logger)
+                else:
+                    downloader = SmartDownloader(self.logger, use_proxy=self.settings.get('use_proxy', True), resume=self.settings.get('resume_downloads', True), cleanup=self.settings.get('cleanup_temp', True), mirrors=self.mirrors)
                 with self._active_downloaders_lock:
-                    self._active_downloaders.append(torrent_dl)
+                    self._active_downloaders.append(downloader)
                 try:
-                    torrent_info = dict(info)
-                    installer = TorrentInstaller(dlc_id, torrent_info, self.game_path, torrent_dl, self.extractor, self.logger, self.stats)
+                    installer = self._build_installer(dlc_id, info, source, downloader)
+                    if installer is None:
+                        self.logger.log(f"{dlc_id}: parts source skipped (7-Zip not found)", "WARNING")
+                        last_message = "7-zip not found"
+                        continue
                     installer.set_progress_callback(lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total))
                     success, message = installer.run()
                     if not success:
                         if self._cancelled or message == "Cancelled":
                             return dlc_id, False, "Cancelled"
-                        self.logger.log(f"{dlc_id}: Torrent download failed ({message}), falling back to direct download", "WARNING")
-                        info_orig = dict(info)
-                        info_orig.pop("magnet", None)
-                        inner_kind = installer_kind(info_orig)
-                        if inner_kind == "parts":
-                            seven_finder = SevenZipFinder(self.logger)
-                            seven_path = seven_finder.find()
-                            if not seven_path:
-                                return dlc_id, False, "7-zip not found"
-                            installer = MultiPartInstaller(dlc_id, info_orig, self.game_path, downloader, self.extractor, seven_path, self.logger, self.stats)
-                        else:
-                            installer = SingleDLCInstaller(dlc_id, info_orig, self.game_path, downloader, self.extractor, self.logger, self.stats)
-                        installer.set_progress_callback(lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total))
-                        success, message = installer.run()
+                        self.logger.log(f"{dlc_id}: {source.getType()} source failed ({message}), trying next source", "WARNING")
+                        last_message = message
+                        continue
+                    return dlc_id, True, message
                 finally:
                     with self._active_downloaders_lock:
                         try:
-                            self._active_downloaders.remove(torrent_dl)
+                            self._active_downloaders.remove(downloader)
                         except ValueError:
                             pass
-                return dlc_id, success, message
-            elif kind == "parts":
-                seven_finder = SevenZipFinder(self.logger)
-                seven_path = seven_finder.find()
-                if not seven_path:
-                    return dlc_id, False, "7-zip not found"
-                installer = MultiPartInstaller(dlc_id, info, self.game_path, downloader, self.extractor, seven_path, self.logger, self.stats)
-            else:
-                installer = SingleDLCInstaller(dlc_id, info, self.game_path, downloader, self.extractor, self.logger, self.stats)
-            installer.set_progress_callback(lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total))
-            success, message = installer.run()
-            return dlc_id, success, message
+            return dlc_id, False, last_message or "No download sources available"
         except Exception as e:
             self.logger.log(f"{dlc_id}: ERROR - {e!s}", "ERROR")
             return dlc_id, False, f"Error: {e!s}"
-        finally:
-            with self._active_downloaders_lock:
-                try:
-                    self._active_downloaders.remove(downloader)
-                except ValueError:
-                    pass
     
     def run(self):
         try:

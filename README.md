@@ -64,7 +64,7 @@ It is a Python desktop application built with PyQt6 for the GUI and the `request
 * Simplified DLC selector interface
 * Improved log readability and color coding
 * Better network diagnostics for restricted regions
-* Torrent (magnet) download support with automatic HTTP fallback
+* Torrent (magnet) download support with prioritized HTTP/mirror fallbacks (direct `url` first, then DLC mirrors ordered by `priority`, including `magnet`)
 * Linux platform support (x64)
 
 For detailed changelog, see individual release notes.

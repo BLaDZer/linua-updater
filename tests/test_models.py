@@ -1,6 +1,6 @@
 import threading
 
-from linua_updater.core.models import InstallationStats
+from linua_updater.core.models import CheckSums, DLCInfo, DownloadSource, InstallationStats
 
 
 def test_summary_before_finish_is_none():
@@ -72,3 +72,141 @@ def test_summary_thread_safety():
     assert summary["failed"] == 50
     assert len(stats.downloads) == 50
     assert len(stats.errors) == 50
+
+
+def test_checksums_getters_and_get():
+    cs = CheckSums("sha256-x", "sha1-x", "md5-x")
+    assert cs.getSha256() == "sha256-x"
+    assert cs.getSha1() == "sha1-x"
+    assert cs.getMd5() == "md5-x"
+    assert cs.get("sha256") == "sha256-x"
+    assert cs.get("sha1") == "sha1-x"
+    assert cs.get("md5") == "md5-x"
+    assert cs.get("bogus") is None
+
+
+def test_checksums_from_dict_skips_absent_and_empty():
+    cs = CheckSums.from_dict({"sha256": "", "sha1": None, "md5": "abc"})
+    assert cs.getSha256() is None
+    assert cs.getSha1() is None
+    assert cs.getMd5() == "abc"
+
+
+def test_checksums_from_dict_none():
+    assert CheckSums.from_dict(None) is None
+
+
+def test_dlc_info_url_only_entry():
+    info = DLCInfo.from_entry("EP01", {"name": "Get to Work", "url": "https://example.com/EP01.zip"})
+    assert info.getId() == "EP01"
+    assert info.getName() == "Get to Work"
+    assert info.getSize() is None
+    main = info.getMainDownloadSource()
+    assert main is not None
+    assert main.getType() == "url"
+    assert main.getSource() == "https://example.com/EP01.zip"
+    assert info.getMirrors() == []
+
+
+def test_dlc_info_legacy_magnet_and_parts_mirrors():
+    info = DLCInfo.from_entry(
+        "EP01",
+        {
+            "name": "Get Famous",
+            "url": "https://example.com/EP01.zip",
+            "magnet": "magnet:?xt=foo",
+            "parts": ["https://example.com/1.7z.001", "https://example.com/1.7z.002"],
+            "checksum": {"sha256": "c0ffee"},
+        },
+    )
+    assert info.getName() == "Get Famous"
+    main = info.getMainDownloadSource()
+    assert main.getSource() == "https://example.com/EP01.zip"
+    mirrors = info.getMirrors()
+    assert len(mirrors) == 2
+    assert mirrors[0].getType() == "magnet"
+    assert mirrors[0].getSource() == "magnet:?xt=foo"
+    assert mirrors[0].getPriority() == 0
+    assert mirrors[0].getCheckSums().get("sha256") == "c0ffee"
+    assert mirrors[1].getType() == "parts"
+    assert mirrors[1].getPriority() == 0
+    parts = mirrors[1].getParts()
+    assert len(parts) == 2
+    assert parts[0].getType() == "url"
+    assert parts[0].getSource() == "https://example.com/1.7z.001"
+    assert parts[1].getSource() == "https://example.com/1.7z.002"
+
+
+def test_dlc_info_mirror_sort_by_priority_desc():
+    info = DLCInfo.from_entry(
+        "EP06",
+        {
+            "name": "Get Famous",
+            "url": "https://example.com/EP06.zip",
+            "mirrors": [
+                {
+                    "type": "parts",
+                    "parts": [
+                        {"type": "url", "url": "https://example.com/1.7z.001"},
+                        {"type": "url", "url": "https://example.com/1.7z.002"},
+                    ],
+                },
+                {"type": "magnet", "magnet": "magnet:?xt=foo", "priority": 20},
+            ],
+        },
+    )
+    mirrors = info.getMirrors()
+    assert len(mirrors) == 2
+    assert [m.getType() for m in mirrors] == ["magnet", "parts"]
+    assert mirrors[0].getPriority() == 20
+    assert mirrors[1].getPriority() == 0
+    parts = mirrors[1].getParts()
+    assert len(parts) == 2
+    assert [p.getSource() for p in parts] == ["https://example.com/1.7z.001", "https://example.com/1.7z.002"]
+
+
+def test_dlc_info_mirror_inherits_entry_checksum():
+    entry = {
+        "name": "Get Famous",
+        "url": "https://example.com/EP06.zip",
+        "checksum": {"sha256": "abc123"},
+        "mirrors": [{"type": "magnet", "magnet": "magnet:?xt=foo"}],
+    }
+    info = DLCInfo.from_entry("EP06", entry)
+    mirror = info.getMirrors()[0]
+    assert mirror.getCheckSums().get("sha256") == "abc123"
+
+
+def test_dlc_info_mirror_keeps_own_checksum():
+    entry = {
+        "name": "Get Famous",
+        "url": "https://example.com/EP06.zip",
+        "checksum": {"sha256": "abc123"},
+        "mirrors": [{"type": "magnet", "magnet": "magnet:?xt=foo", "checksum": {"sha256": "own123"}}],
+    }
+    info = DLCInfo.from_entry("EP06", entry)
+    mirror = info.getMirrors()[0]
+    assert mirror.getCheckSums().get("sha256") == "own123"
+
+
+def test_dlc_info_get_size():
+    info = DLCInfo.from_entry("EP01", {"name": "x", "url": "u", "size": 12345})
+    assert info.getSize() == 12345
+
+
+def test_dlc_info_no_main_source_without_url():
+    info = DLCInfo.from_entry("EP01", {"name": "x", "magnet": "magnet:?xt=foo"})
+    assert info.getMainDownloadSource() is None
+    assert len(info.getMirrors()) == 1
+    assert info.getMirrors()[0].getType() == "magnet"
+
+
+def test_download_source_from_dict_infers_type():
+    src = DownloadSource.from_dict({"url": "https://example.com/a.zip"})
+    assert src.getType() == "url"
+    assert src.getSource() == "https://example.com/a.zip"
+    assert src.getPriority() == 0
+    src2 = DownloadSource.from_dict({"parts": [{"url": "u1"}]})
+    assert src2.getType() == "parts"
+    assert len(src2.getParts()) == 1
+    assert src2.getParts()[0].getType() == "url"

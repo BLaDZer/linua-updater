@@ -2,6 +2,7 @@ import threading
 
 import pytest
 
+from linua_updater.core.models import DLCInfo, DownloadSource
 from linua_updater.logging_util import SignalLogger
 from linua_updater.paths import AppPaths
 from linua_updater.workers.install_worker import InstallWorker, installer_kind
@@ -28,7 +29,7 @@ class FakeDb:
         self.data = data
 
     def all(self):
-        return self.data
+        return {dlc_id: DLCInfo.from_entry(dlc_id, info) for dlc_id, info in self.data.items()}
 
 
 class FakeStats:
@@ -69,57 +70,7 @@ def test_install_single_cancelled_returns_cancelled(worker, tmp_path):
     assert worker._active_downloaders == []
 
 
-def test_install_single_torrent_cancelled_no_fallback(worker, tmp_path, monkeypatch):
-    worker.db = FakeDb({"EP01": {"magnet": "magnet:?xt=foo", "url": "http://example.com/EP01.zip"}})
-    worker.logger = None
-    worker.game_path = tmp_path
-    worker.settings = {}
-    worker.mirrors = {}
-    worker._cancelled = False
-    worker.stats = FakeStats()
-    worker.extractor = None
-    worker._active_downloaders = []
-
-    direct_downloads = []
-
-    class FakeTorrentDownloader:
-        def __init__(self, logger):
-            self.logger = logger
-
-        def cancel(self):
-            pass
-
-        def set_progress_callback(self, callback):
-            pass
-
-        def download(self, magnet, temp, dlc_name=None, expected_size=None):
-            return False, "Cancelled"
-
-    class FakeSmartDownloader:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def download(self, url, out_path, **kwargs):
-            direct_downloads.append(url)
-            return True, "OK"
-
-    monkeypatch.setattr(
-        "linua_updater.workers.install_worker.TorrentDownloader",
-        FakeTorrentDownloader,
-    )
-    monkeypatch.setattr(
-        "linua_updater.workers.install_worker.SmartDownloader",
-        FakeSmartDownloader,
-    )
-
-    dlc_id, ok, msg = worker._install_single("EP01")
-    assert dlc_id == "EP01"
-    assert ok is False
-    assert msg == "Cancelled"
-    assert direct_downloads == []
-
-
-def test_install_single_magnet_fallback_runs_once(worker, tmp_path, monkeypatch):
+def test_install_single_cancelled_no_fallback(worker, tmp_path, monkeypatch):
     class FakeLogger:
         def log(self, text, level="INFO"):
             pass
@@ -135,6 +86,71 @@ def test_install_single_magnet_fallback_runs_once(worker, tmp_path, monkeypatch)
     worker._active_downloaders = []
 
     direct_downloads = []
+    magnet_calls = []
+
+    class FakeTorrentDownloader:
+        def __init__(self, logger):
+            self.logger = logger
+
+        def cancel(self):
+            pass
+
+        def set_progress_callback(self, callback):
+            pass
+
+        def download(self, magnet, temp, dlc_name=None, expected_size=None):
+            magnet_calls.append(magnet)
+            return True, "OK"
+
+    class FakeSmartDownloader:
+        resume_enabled = False
+        cleanup = False
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def set_progress_callback(self, callback):
+            pass
+
+        def download(self, url, out_path, *args, **kwargs):
+            direct_downloads.append(url)
+            return False, "Cancelled"
+
+    monkeypatch.setattr(
+        "linua_updater.workers.install_worker.TorrentDownloader",
+        FakeTorrentDownloader,
+    )
+    monkeypatch.setattr(
+        "linua_updater.workers.install_worker.SmartDownloader",
+        FakeSmartDownloader,
+    )
+
+    dlc_id, ok, msg = worker._install_single("EP01")
+    assert dlc_id == "EP01"
+    assert ok is False
+    assert msg == "Cancelled"
+    assert direct_downloads == ["http://example.com/EP01.zip"]
+    assert magnet_calls == []
+    assert worker._active_downloaders == []
+
+
+def test_install_single_url_first_then_magnet_mirror(worker, tmp_path, monkeypatch):
+    class FakeLogger:
+        def log(self, text, level="INFO"):
+            pass
+
+    worker.db = FakeDb({"EP01": {"magnet": "magnet:?xt=foo", "url": "http://example.com/EP01.zip"}})
+    worker.logger = FakeLogger()
+    worker.game_path = tmp_path
+    worker.settings = {}
+    worker.mirrors = {}
+    worker._cancelled = False
+    worker.stats = FakeStats()
+    worker.extractor = None
+    worker._active_downloaders = []
+
+    direct_downloads = []
+    magnet_calls = []
 
     class FakeTorrentDownloader:
         def __init__(self, logger):
@@ -153,6 +169,7 @@ def test_install_single_magnet_fallback_runs_once(worker, tmp_path, monkeypatch)
             pass
 
         def download(self, magnet, temp, dlc_name=None, expected_size=None):
+            magnet_calls.append(magnet)
             return False, "bad torrent"
 
     class FakeSmartDownloader:
@@ -181,8 +198,9 @@ def test_install_single_magnet_fallback_runs_once(worker, tmp_path, monkeypatch)
     dlc_id, ok, msg = worker._install_single("EP01")
     assert dlc_id == "EP01"
     assert ok is False
-    assert msg == "All download attempts failed"
+    assert msg == "bad torrent"
     assert direct_downloads == ["http://example.com/EP01.zip"]
+    assert magnet_calls == ["magnet:?xt=foo"]
     assert worker._active_downloaders == []
 
 
@@ -293,22 +311,18 @@ def test_pause_saves_state(worker):
 
 
 def test_installer_kind_magnet():
-    info = {"magnet": "magnet:?xt=foo", "url": "http://example.com/a.zip"}
-    assert installer_kind(info) == "magnet"
+    source = DownloadSource.magnet("magnet:?xt=foo")
+    assert installer_kind(source) == "magnet"
 
 
 def test_installer_kind_parts():
-    info = {"parts": ["http://example.com/1.7z.001"]}
-    assert installer_kind(info) == "parts"
+    source = DownloadSource.parts([DownloadSource.url("http://example.com/1.7z.001")])
+    assert installer_kind(source) == "parts"
 
 
 def test_installer_kind_url_only():
-    info = {"url": "http://example.com/a.zip"}
-    assert installer_kind(info) == "single"
-
-
-def test_installer_kind_empty():
-    assert installer_kind({}) == "single"
+    source = DownloadSource.url("http://example.com/a.zip")
+    assert installer_kind(source) == "single"
 
 
 def test_installer_kind_none():
@@ -316,8 +330,8 @@ def test_installer_kind_none():
 
 
 def test_installer_kind_magnet_over_parts():
-    info = {"magnet": "magnet:?xt=foo", "parts": ["http://example.com/1.7z.001"], "url": "http://example.com/a.zip"}
-    assert installer_kind(info) == "magnet"
+    source = DownloadSource.magnet("magnet:?xt=foo")
+    assert installer_kind(source) == "magnet"
 
 
 def test_cancel_does_not_resume(worker):
