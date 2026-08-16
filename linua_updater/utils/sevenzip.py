@@ -13,15 +13,15 @@ class SevenZipFinder:
         r"C:\Program Files\7-Zip\7za.exe",
         r"C:\Program Files (x86)\7-Zip\7z.exe",
         r"C:\Program Files (x86)\7-Zip\7za.exe",
-        "7z"
-        "7za"
-        "tools/7z"
-        "tools/7za"
+        "7z",
+        "7za",
+        "tools/7z",
+        "tools/7za",
         "/usr/bin/7z",
         "/usr/bin/7za",
         "/usr/bin/7zz",
         "/usr/local/bin/7z",
-        "/snap/bin/7z"
+        "/snap/bin/7z",
     ]
 
     def __init__(self, logger):
