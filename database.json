@@ -12,7 +12,57 @@
     },
     "EP02": {
       "name": "Get Together",
-      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP02.zip"
+      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP02.zip",
+      "mirrors": [
+        {
+          "type": "parts",
+          "parts": [
+            {
+              "type": "url",
+              "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.001",
+              "checksum": {
+                "sha256": "6ca5aae51994b388c0c1754b35a796b0aa2a70134d7d19cff3ad2d7c5e39f76b",
+                "sha1": "cdd5c4ebe754780e7bdf9bbadac040744d933b91",
+                "md5": "a6a32c44748cb864f95395060f02373b"
+              }
+            },
+            {
+              "type": "url",
+              "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.002"
+            },
+            {
+              "type": "url",
+              "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.003"
+            },
+            {
+              "type": "url",
+              "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.004"
+            },
+            {
+              "type": "url",
+              "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.005"
+            },
+            {
+              "type": "url",
+              "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.006"
+            },
+            {
+              "type": "url",
+              "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.007"
+            }
+          ]
+        },
+        {
+          "type": "magnet",
+          "magnet" : "magnet:?xt=urn:btih:1ce063c717dc20b59473c0321fb49607a9ecc86d&dn=Microsoft%20Windows%2010%20Enterprise%202021%20LTSC%2C%20Version%2021H2%20-%20%D0%9E%D1%80%D0%B8%D0%B3%D0%B8%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B7%D1%8B%20%D0%BE%D1%82%20Microsoft%20MSDN%20%5BRu%5D&xl=8144097280&tr=http%3A%2F%2Fretracker.local%2Fannounce&tr=http%3A%2F%2Fbt.t-ru.org%2Fann%3Fmagnet",
+          "checksum": {
+            "sha256": "6ca5aae51994b388c0c1754b35a796b0aa2a70134d7d19cff3ad2d7c5e39f76b",
+            "sha1": "cdd5c4ebe754780e7bdf9bbadac040744d933b91",
+            "md5": "a6a32c44748cb864f95395060f02373b"
+          },
+          "priority": 20
+        }
+      ]
     },
     "EP03": {
       "name": "City Living",
