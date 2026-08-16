@@ -33,6 +33,7 @@ It is a Python desktop application built with PyQt6 for the GUI and the `request
 ## **System Requirements**
 
 * Windows 10 or Windows 11 (64-bit)
+* Linux (x64) with display server (Wayland/X11)
 * Installed copy of *The Sims 4*
 * ~80 GB free disk space (for full DLC installation)
 * Stable Internet connection
@@ -63,6 +64,8 @@ It is a Python desktop application built with PyQt6 for the GUI and the `request
 * Simplified DLC selector interface
 * Improved log readability and color coding
 * Better network diagnostics for restricted regions
+* Torrent (magnet) download support with automatic HTTP fallback
+* Linux platform support (x64)
 
 For detailed changelog, see individual release notes.
 
@@ -291,6 +294,7 @@ If your version behaves differently → you downloaded a **fake**.
 linua_updater/         # application package (UI, workers, core services, utils, persistence)
 tests/                 # smoke tests for core logic (pytest)
 docs/                  # architecture overview + refactoring plan
+tools/                 # aria2c binaries (excluded from git, bundled at build time)
 pyproject.toml         # project metadata, dependencies, pytest/ruff config
 build.spec             # PyInstaller spec file
 version.json           # update channel payload (version, download_url, changelog)
@@ -345,17 +349,19 @@ pyinstaller --noconfirm build.spec
 * Python >= 3.8
 * PyQt6 >= 6.4.0
 * requests >= 2.28.0
+* `aria2c` — bundled automatically (no separate installation needed)
 * Dev only (optional): pytest, ruff, pyinstaller — `pip install -e ".[dev]"`
 
 ---
 
 ## **Technical Information**
 
-* **Platform:** Windows (64-bit)
+* **Platforms:** Windows 10/11 (64-bit), Linux (x64)
 * **Architecture:** x64
 * **Language:** Python 3.8+
 * **GUI Framework:** PyQt6
-* **No external dependencies** for .exe version
+* **Bundled binaries:** aria2c (for torrent downloads)
+* **No external dependencies** for packaged version
 
 ---
 

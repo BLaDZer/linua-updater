@@ -23,6 +23,7 @@
     "EP06": {
       "name": "Get Famous",
       "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.zip",
+      "magnet": "magnet:?xt=urn:btih:764225f15e1fce73d8e790b9e7c1607cd4d43b7e&dn=Alawar_NoKey.exe&xl=69120&tr=http%3A%2F%2Fbt4.t-ru.org%2Fann%3Fmagnet&tr=http%3A%2F%2Fretracker.local%2Fannounce",
       "parts": [
         "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.001",
         "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.002",

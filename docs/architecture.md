@@ -32,7 +32,8 @@ linua_updater/
 ├── utils/                 # ConfigManager, SingleInstanceLock, AdminElevator, DiskSpaceChecker, SevenZipFinder
 ├── persistence/           # DownloadQueue, DownloadState (JSON state files)
 ├── core/                  # DLCDatabase, SmartDownloader, Extractor, GameDetector, NetworkDiagnostics,
-│                          #  ParallelInstallManager, SingleDLCInstaller, MultiPartInstaller, InstallationStats
+│                          #  ParallelInstallManager, SingleDLCInstaller, MultiPartInstaller, TorrentInstaller,
+│                          #  InstallationStats
 ├── workers/               # UpdateChecker, InstallWorker, UninstallWorker, DiagnosticsWorker,
 │                          #  DatabaseRefreshWorker (QObject/QThread)
 └── ui/                    # LinuaUI (main window), dialogs, widgets, theme
@@ -105,9 +106,12 @@ All dialogs share a dark theme via inline Qt stylesheets.
 | Class | Responsibility |
 | --- | --- |
 | `SmartDownloader` | Downloads with retries (backoff), byte-level resume via `Range` header + `.part` temp files, slow-speed abort (<50 KB/s), proxy fallback, and mirror fallback; honors the `use_proxy`/`resume_downloads`/`cleanup_temp` settings and supports `pause()`/`resume()` via a `threading.Condition` in the chunk loop (also cancellable from pause) |
+| `TorrentDownloader` | Drives `aria2c` as a subprocess for magnet links; exposes the same `set_progress_callback`/`cancel`/`pause`/`resume`/`download` surface as `SmartDownloader`; parses `--summary-interval=1` output for progress callbacks |
 | `Extractor` | Extracts single ZIP archives (validated with `testzip()` and per-member path validation) or multipart 7-Zip archives via `7z.exe` |
 | `SingleDLCInstaller` | Orchestrates download → extract for single-archive DLC |
 | `MultiPartInstaller` | Downloads each `.7z.001/002/...` part (weighted progress across parts), then extracts via 7-Zip; supported in code but not exercised by the shipped catalog |
+| `TorrentInstaller` | Downloads a magnet via `TorrentDownloader`, verifies checksums against `info['checksum']`, then extracts the archive through `Extractor`; falls back to `parts`/`url` on any failure |
+| `Aria2Finder` | Locates the `aria2c` executable at runtime (PyInstaller `_MEIPASS` → exe dir → common paths → PATH); mirrors `SevenZipFinder`'s pattern |
 | `ParallelInstallManager` | Genuinely parallel: a `ThreadPoolExecutor` (sized by `Settings.max_threads`) with one future per DLC; seeds all selected DLC at 0 and computes overall progress as the average over the total selected count |
 | `InstallWorker` | QThread-backed driver; submits one unit of work per DLC to the parallel manager, drains futures with `as_completed`, and emits per-DLC results and aggregated stats; exposes `pause()`/`resume()`/`cancel()` |
 | `UninstallWorker` | Deletes selected DLC folders off the UI thread |
@@ -115,9 +119,9 @@ All dialogs share a dark theme via inline Qt stylesheets.
 
 Each selected DLC is submitted as its own future to `ParallelInstallManager` and installs concurrently (up to `max_threads`); all selected DLC are seeded at 0, and overall progress is the average across the full selection. Per DLC:
 
-1. Look up DLC metadata in `DLCDatabase`; if it defines a non-empty `parts[]`, route to `MultiPartInstaller` (requires 7-Zip), otherwise `SingleDLCInstaller`. No catalog entry currently defines `parts[]`, so the multipart path is supported but unused today.
-2. Download to a temp path with `.part` extension, resuming from any existing partial file (a dedicated per-future `SmartDownloader`).
-3. Validate: non-empty, ≥1 KB, size matches expectation.
+1. Look up DLC metadata in `DLCDatabase`; `installer_kind(info)` routes by priority: `magnet` (highest) → `parts` → `single`. A magnet install (`TorrentInstaller`) that fails at any point automatically falls back to `parts`, then `url` (logged at `WARNING`).
+2. Download to a temp path: torrents via `aria2c` (`.aria2` control files for resume), HTTP via `SmartDownloader` (`.part` extension), resuming from any existing partial file (a dedicated per-future downloader).
+3. Validate: non-empty, ≥1 KB, checksum matches (for torrents and single DLC).
 4. Extract into the game folder.
 5. Record stats/errors; remove temp files; emit `result_ready`.
 6. After all DLC: emit summary stats and finish signal.
@@ -228,8 +232,8 @@ Both install `pyinstaller`, `requests`, `PyQt6`, run `pyinstaller --noconfirm bu
 2. **Select** — `DLCSelector` shows DLC not already installed.
 3. **Validate** — path exists, `TS4_x64.exe` optional check, admin rights requested if under `Program Files`.
 4. **Check space** — `DiskSpaceChecker` warns (optionally allowing continuation) if free space is short.
-5. **Run** — `InstallWorker` in a `QThread`; submits one future per DLC to a `ThreadPoolExecutor` (bounded by `Settings.max_threads`), each with a dedicated `SmartDownloader`, with byte-level resume, retries, proxy/mirror fallback, slow-speed abort, and pause/resume.
-6. **Extract** — ZIP via stdlib, multipart via 7-Zip.
+5. **Run** — `InstallWorker` in a `QThread`; submits one future per DLC to a `ThreadPoolExecutor` (bounded by `Settings.max_threads`). Each DLC is routed by `installer_kind(info)`: `magnet` → `TorrentInstaller` (via `aria2c`), `parts` → `MultiPartInstaller`, otherwise `SingleDLCInstaller` (via `SmartDownloader`). Torrent failures automatically fall back to `parts`/`url`. All downloaders support pause/resume/cancel.
+6. **Extract** — ZIP via stdlib, multipart via 7-Zip, torrent archives via the same paths.
 7. **Report** — per-DLC results, weighted overall progress on the main bar, then a stats summary; success dialog reminds the user to run a DLC Unlocker.
 8. **Reset UI** — buttons/progress restored; DLC status rescanned.
 

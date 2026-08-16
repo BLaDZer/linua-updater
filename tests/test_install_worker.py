@@ -2,7 +2,7 @@ import threading
 
 import pytest
 
-from linua_updater.workers.install_worker import InstallWorker
+from linua_updater.workers.install_worker import InstallWorker, installer_kind
 
 
 class FakeQueue:
@@ -73,3 +73,52 @@ def test_pause_saves_state(worker):
     worker._active_downloaders = []
     worker.pause()
     assert saved == [True]
+
+
+def test_installer_kind_magnet():
+    info = {"magnet": "magnet:?xt=foo", "url": "http://example.com/a.zip"}
+    assert installer_kind(info) == "magnet"
+
+
+def test_installer_kind_parts():
+    info = {"parts": ["http://example.com/1.7z.001"]}
+    assert installer_kind(info) == "parts"
+
+
+def test_installer_kind_url_only():
+    info = {"url": "http://example.com/a.zip"}
+    assert installer_kind(info) == "single"
+
+
+def test_installer_kind_empty():
+    assert installer_kind({}) == "single"
+
+
+def test_installer_kind_none():
+    assert installer_kind(None) == "single"
+
+
+def test_installer_kind_magnet_over_parts():
+    info = {"magnet": "magnet:?xt=foo", "parts": ["http://example.com/1.7z.001"], "url": "http://example.com/a.zip"}
+    assert installer_kind(info) == "magnet"
+
+
+def test_cancel_does_not_resume(worker):
+    """cancel() should only call cancel() on downloaders, not resume()."""
+    resume_called = []
+    cancel_called = []
+
+    class FakeDownloader:
+        def cancel(self):
+            cancel_called.append(True)
+        def resume(self):
+            resume_called.append(True)
+        def pause(self):
+            pass
+
+    worker._active_downloaders = [FakeDownloader()]
+    worker.parallel_manager = None
+    worker.downloader = None
+    worker.cancel()
+    assert len(cancel_called) == 1
+    assert len(resume_called) == 0

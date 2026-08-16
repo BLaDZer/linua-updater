@@ -56,6 +56,11 @@ class FakeTempfile:
     def gettempdir(self):
         return self._path
 
+    def mkdtemp(self, prefix=None):
+        import tempfile as _tempfile
+
+        return _tempfile.mkdtemp(prefix=prefix)
+
 
 @pytest.fixture
 def temp_download_dir(tmp_path, monkeypatch):
@@ -229,3 +234,113 @@ def test_multipart_part_failure_cleans_up(temp_download_dir):
     assert len(stats.errors) == 1
     assert stats.errors[0]["dlc_id"] == "MP01"
     assert stats.errors[0]["error"] == "Part 2 failed: boom"
+
+
+class StubTorrentDownloader:
+    def __init__(self, results, cleanup=True):
+        self.results = list(results)
+        self.cleanup = cleanup
+        self.calls = []
+        self._progress_callback = None
+
+    def set_progress_callback(self, callback):
+        self._progress_callback = callback
+
+    def download(self, magnet, out_dir, dlc_name=None, expected_size=None):
+        self.calls.append((magnet, out_dir, dlc_name, expected_size))
+        ok, payload = self.results.pop(0)
+        if ok and isinstance(payload, list):
+            for f in payload:
+                if os.path.isfile(f):
+                    pass
+        return ok, payload
+
+
+def _torrent(dlc_id, info, game_path, downloader, extractor, stats):
+    from linua_updater.core.installers import TorrentInstaller
+    return TorrentInstaller(dlc_id, info, game_path, downloader, extractor, FakeLogger(), stats)
+
+
+def test_torrent_missing_magnet(temp_download_dir):
+    dl = StubTorrentDownloader([])
+    ex = StubExtractor()
+    installer = _torrent("EP01", {}, str(temp_download_dir), dl, ex, InstallationStats())
+    ok, msg = installer.run()
+    assert ok is False
+    assert msg == "Magnet missing"
+
+
+def test_torrent_download_failure(temp_download_dir):
+    dl = StubTorrentDownloader([(False, "no seeders")])
+    ex = StubExtractor()
+    stats = InstallationStats()
+    installer = _torrent("EP01", {"magnet": "magnet:?xt=foo"}, str(temp_download_dir), dl, ex, stats)
+    ok, msg = installer.run()
+    assert ok is False
+    assert msg == "no seeders"
+    assert len(stats.errors) == 1
+
+
+def test_torrent_success(temp_download_dir, monkeypatch):
+    import hashlib
+    import zipfile
+
+    archive = temp_download_dir / "EP01.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("test.dat", b"x" * 2048)
+
+    sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    dl = StubTorrentDownloader([(True, [str(archive)])])
+    ex = StubExtractor()
+    stats = InstallationStats()
+    info = {
+        "magnet": "magnet:?xt=foo",
+        "checksum": {"sha256": sha},
+        "size": archive.stat().st_size,
+    }
+    installer = _torrent("EP01", info, str(temp_download_dir), dl, ex, stats)
+    ok, msg = installer.run()
+    assert ok is True
+    assert msg == "OK"
+    assert "EP01" in stats.downloads
+
+
+def test_torrent_checksum_failure(temp_download_dir):
+    import zipfile
+
+    archive = temp_download_dir / "EP01.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("test.dat", b"x" * 2048)
+
+    dl = StubTorrentDownloader([(True, [str(archive)])])
+    ex = StubExtractor()
+    stats = InstallationStats()
+    info = {
+        "magnet": "magnet:?xt=foo",
+        "checksum": {"sha256": "0" * 64},
+    }
+    installer = _torrent("EP01", info, str(temp_download_dir), dl, ex, stats)
+    ok, msg = installer.run()
+    assert ok is False
+    assert "Checksum mismatch" in msg
+    assert len(stats.errors) == 1
+
+
+def test_torrent_unsupported_archive(temp_download_dir):
+    exe = temp_download_dir / "setup.exe"
+    exe.write_bytes(b"x" * 2048)
+    dl = StubTorrentDownloader([(True, [str(exe)])])
+    ex = StubExtractor()
+    installer = _torrent("EP01", {"magnet": "magnet:?xt=foo"}, str(temp_download_dir), dl, ex, InstallationStats())
+    ok, msg = installer.run()
+    assert ok is False
+    assert "Unsupported torrent archive" in msg
+
+
+def test_torrent_no_files(temp_download_dir):
+    dl = StubTorrentDownloader([(True, [])])
+    ex = StubExtractor()
+    installer = _torrent("EP01", {"magnet": "magnet:?xt=foo"}, str(temp_download_dir), dl, ex, InstallationStats())
+    ok, msg = installer.run()
+    assert ok is False
+    assert "No files downloaded" in msg

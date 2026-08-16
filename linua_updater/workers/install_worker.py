@@ -7,13 +7,22 @@ from linua_updater.constants import DEFAULT_MIRRORS
 from linua_updater.core.database import DLCDatabase
 from linua_updater.core.downloader import SmartDownloader
 from linua_updater.core.extractor import Extractor
-from linua_updater.core.installers import MultiPartInstaller, SingleDLCInstaller
+from linua_updater.core.installers import MultiPartInstaller, SingleDLCInstaller, TorrentInstaller
 from linua_updater.core.models import InstallationStats
 from linua_updater.core.parallel import ParallelInstallManager
+from linua_updater.core.torrent_downloader import TorrentDownloader
 from linua_updater.logging_util import ImprovedLogger
 from linua_updater.persistence.download_queue import DownloadQueue
 from linua_updater.persistence.download_state import DownloadState
 from linua_updater.utils.sevenzip import SevenZipFinder
+
+
+def installer_kind(info):
+    if info and info.get("magnet"):
+        return "magnet"
+    if info and info.get("parts"):
+        return "parts"
+    return "single"
 
 
 class InstallWorker(QObject):
@@ -58,7 +67,6 @@ class InstallWorker(QObject):
             active = list(self._active_downloaders)
         for downloader in active:
             downloader.cancel()
-            downloader.resume()
     
     def pause(self):
         self._paused = True
@@ -84,7 +92,7 @@ class InstallWorker(QObject):
             self._download_state.save_state(self.dlc_ids, self._completed_ids, self._failed_ids, self.game_path)
         except Exception as e:
             self.logger.log(f"Failed to save download state: {e}", "ERROR")
-    
+
     def _install_single(self, dlc_id):
         info = self.db.all().get(dlc_id)
         if not info:
@@ -93,7 +101,38 @@ class InstallWorker(QObject):
         with self._active_downloaders_lock:
             self._active_downloaders.append(downloader)
         try:
-            if info.get("parts"):
+            kind = installer_kind(info)
+            if kind == "magnet":
+                torrent_dl = TorrentDownloader(self.logger)
+                with self._active_downloaders_lock:
+                    self._active_downloaders.append(torrent_dl)
+                try:
+                    torrent_info = dict(info)
+                    installer = TorrentInstaller(dlc_id, torrent_info, self.game_path, torrent_dl, self.extractor, self.logger, self.stats)
+                    installer.set_progress_callback(lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total))
+                    success, message = installer.run()
+                    if not success:
+                        self.logger.log(f"{dlc_id}: Torrent download failed ({message}), falling back to direct download", "WARNING")
+                        info_orig = dict(info)
+                        info_orig.pop("magnet", None)
+                        inner_kind = installer_kind(info_orig)
+                        if inner_kind == "parts":
+                            seven_finder = SevenZipFinder(self.logger)
+                            seven_path = seven_finder.find()
+                            if not seven_path:
+                                return dlc_id, False, "7-zip not found"
+                            installer = MultiPartInstaller(dlc_id, info_orig, self.game_path, downloader, self.extractor, seven_path, self.logger, self.stats)
+                        else:
+                            installer = SingleDLCInstaller(dlc_id, info_orig, self.game_path, downloader, self.extractor, self.logger, self.stats)
+                        installer.set_progress_callback(lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total))
+                        success, message = installer.run()
+                finally:
+                    with self._active_downloaders_lock:
+                        try:
+                            self._active_downloaders.remove(torrent_dl)
+                        except ValueError:
+                            pass
+            elif kind == "parts":
                 seven_finder = SevenZipFinder(self.logger)
                 seven_path = seven_finder.find()
                 if not seven_path:
