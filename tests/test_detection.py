@@ -39,6 +39,7 @@ def _make_game_tree(base, with_exe=True):
 
 
 def test_find_from_registry_returns_empty_off_win32(linux_env, monkeypatch):
+    monkeypatch.delitem(sys.modules, "winreg", raising=False)
     assert GameDetector.find_from_registry() == []
     assert sys.modules.get("winreg") is None
 

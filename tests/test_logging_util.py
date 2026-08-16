@@ -57,6 +57,9 @@ def test_log_no_widget_still_logs_to_file(logger, isolated_app_paths):
 
 
 def test_export_logs_missing_file(logger, isolated_app_paths):
+    for handler in list(logger.file_logger.handlers):
+        handler.close()
+        logger.file_logger.removeHandler(handler)
     AppPaths.LOG_FILE.unlink(missing_ok=True)
     assert not AppPaths.LOG_FILE.exists()
     ok, msg = logger.export_logs()
