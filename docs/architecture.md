@@ -92,7 +92,7 @@ Signal/slot flow:
 | `DLCSelector` | Checkbox list of available DLC with "select all"; filters out already-installed packs |
 | `UninstallDialog` | Checkbox list of installed DLC; grouped confirm dialog before deletion |
 | `SettingsDialog` | Parallel download count and network behavior toggles plus a Database group; the "Reset database cache" button runs `DLCDatabase.refresh()` on a background `QThread` (`DatabaseRefreshWorker`), keeping the modal responsive during the up-to-10 s network call (button shows `Refreshing...` and is disabled) |
-| `CompletionDialog` | Success screen reminding the user to run a DLC Unlocker |
+| `CompletionDialog` | Success screen reminding the user to run a DLC Unlocker; auto-sizes to fit its wrapped warning text on all platforms |
 | `SpaceWarningDialog` | Warns when disk space is insufficient; allows "Continue Anyway" |
 
 All dialogs share a dark theme via inline Qt stylesheets.

@@ -1,8 +1,10 @@
+import inspect
 import os
 import types
 from pathlib import Path
 
 from linua_updater.core.detection import GameDetector
+from linua_updater.ui.dialogs import CompletionDialog
 from linua_updater.ui.main_window import (
     LinuaUI,
     _browse_default_dir,
@@ -207,3 +209,19 @@ def test_persist_valid_path_persists_and_returns(tmp_path):
     path = LinuaUI._persist_valid_path(obj, str(tmp_path))
     assert path == str(tmp_path)
     assert fake_config.calls == [("game_path", str(tmp_path))]
+
+
+def test_completion_dialog_heights_auto_size():
+    source = inspect.getsource(CompletionDialog)
+    assert "setFixedSize(450, 200)" not in source
+
+
+def test_completion_dialog_uses_fixed_size_constraint():
+    source = inspect.getsource(CompletionDialog)
+    assert "QLayout.SizeConstraint.SetFixedSize" in source
+    assert "setSizeConstraint(" in source
+
+
+def test_completion_dialog_warning_wrap_width_fixed():
+    source = inspect.getsource(CompletionDialog)
+    assert "setFixedWidth(390)" in source or "WARNING_WRAP_WIDTH" in source

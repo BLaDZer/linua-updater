@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -22,7 +23,7 @@ class CompletionDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Installation Complete")
-        self.setFixedSize(450, 200)
+        self.setMinimumSize(450, 220)
         self.setModal(True)
         self.setup_ui()
         self.apply_theme()
@@ -31,6 +32,7 @@ class CompletionDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
 
         title = QLabel("All done. Enjoy and have fun playing!")
         title.setStyleSheet("font-size: 14px; font-weight: bold; color: #6bcf7f; padding: 10px;")
@@ -41,6 +43,7 @@ class CompletionDialog(QDialog):
         warning_text.setStyleSheet("font-size: 11px; color: #cccccc; padding: 10px;")
         warning_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         warning_text.setWordWrap(True)
+        warning_text.setFixedWidth(390)
         layout.addWidget(warning_text)
 
         layout.addStretch()
