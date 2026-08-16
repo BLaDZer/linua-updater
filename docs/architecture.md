@@ -105,7 +105,7 @@ All dialogs share a dark theme via inline Qt stylesheets.
 
 | Class | Responsibility |
 | --- | --- |
-| `SmartDownloader` | Downloads with retries (backoff), byte-level resume via `Range` header + `.part` temp files, slow-speed abort (<50 KB/s), proxy fallback, and mirror fallback; honors the `use_proxy`/`resume_downloads`/`cleanup_temp` settings and supports `pause()`/`resume()` via a `threading.Condition` in the chunk loop (also cancellable from pause) |
+| `SmartDownloader` | Downloads with retries (backoff), byte-level resume via `Range` header + `.part` temp files, slow-speed abort (<50 KB/s), proxy fallback, and mirror fallback; honors the `use_proxy`/`resume_downloads`/`cleanup_temp` settings and supports `pause()`/`resume()` via a `threading.Condition` in the chunk loop (also cancellable from pause). Exposes `resume()` as a method and stores the resume preference in `resume_enabled` (renamed to avoid shadowing the method) |
 | `TorrentDownloader` | Drives `aria2c` as a subprocess for magnet links; exposes the same `set_progress_callback`/`cancel`/`pause`/`resume`/`download` surface as `SmartDownloader`; parses `--summary-interval=1` output for progress callbacks; spawns `aria2c` with `CREATE_NO_WINDOW` on Windows and reaps the child on cancel/close |
 | `Extractor` | Extracts single ZIP archives (validated with `testzip()` and per-member path validation) or multipart 7-Zip archives via `7z.exe`; `extract_7z` runs the 7-Zip binary with `CREATE_NO_WINDOW` on Windows so no console window appears |
 | `SingleDLCInstaller` | Orchestrates download → extract for single-archive DLC |

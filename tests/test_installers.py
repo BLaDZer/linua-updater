@@ -16,7 +16,7 @@ class StubDownloader:
     def __init__(self, results, cleanup=True, resume=False):
         self.results = list(results)
         self.cleanup = cleanup
-        self.resume = resume
+        self.resume_enabled = resume
         self.calls = []
         self.out_paths = []
 

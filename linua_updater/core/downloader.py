@@ -14,7 +14,7 @@ class SmartDownloader:
         self.diagnostics = diagnostics
         self.mirrors = mirrors if mirrors else dict(DEFAULT_MIRRORS)
         self.use_proxy = use_proxy
-        self.resume = resume
+        self.resume_enabled = resume
         self.cleanup = cleanup
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': 'Linua-Updater/' + APP_VERSION})

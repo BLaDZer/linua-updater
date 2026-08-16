@@ -41,7 +41,7 @@ class SingleDLCInstaller:
             dlc_name = f"{self.dlc} - {self.info.get('name', 'Unknown')}"
             if self._progress_callback:
                 self.dl.set_progress_callback(self._progress_callback)
-            ok, reason = self.dl.download(url, temp, dlc_name, resume=self.dl.resume, expected_size=expected_size)
+            ok, reason = self.dl.download(url, temp, dlc_name, resume=self.dl.resume_enabled, expected_size=expected_size)
             if not ok:
                 if self.stats:
                     self.stats.record_error(self.dlc, reason)
@@ -126,7 +126,7 @@ class MultiPartInstaller:
                         total_progress = base + (progress * weight / 100)
                         self._progress_callback(total_progress, downloaded, total)
                     self.dl.set_progress_callback(part_progress)
-                ok, reason = self.dl.download(url, out, dlc_name, resume=self.dl.resume)
+                ok, reason = self.dl.download(url, out, dlc_name, resume=self.dl.resume_enabled)
                 if not ok:
                     for f in downloaded_files:
                         try:

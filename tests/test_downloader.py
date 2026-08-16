@@ -99,11 +99,27 @@ def test_pause_blocks_until_resume(tmp_path, monkeypatch):
     t.start()
     try:
         time.sleep(0.1)
-        SmartDownloader.resume(dl)
+        dl.resume()
     finally:
         t.join(timeout=5)
     assert not t.is_alive()
     assert result == [(True, "OK")]
+
+
+def test_resume_method_is_callable(monkeypatch):
+    dl, session = _make_downloader(monkeypatch)
+    assert callable(dl.resume)
+    dl_resume_false = SmartDownloader(FakeLogger(), resume=False)
+    assert not dl_resume_false.resume_enabled
+    assert dl.resume_enabled is True
+
+
+def test_resume_flag_survives_rename(monkeypatch):
+    dl, session = _make_downloader(monkeypatch)
+    dl.resume_enabled = True
+    assert callable(dl.resume)
+    assert dl.resume_enabled is True
+    assert isinstance(dl.resume_enabled, bool)
 
 
 def test_resume_uses_range_header_and_appends(tmp_path, monkeypatch):
