@@ -111,6 +111,21 @@ def test_extract_7z_success(tmp_path, monkeypatch):
     assert msg == "OK"
 
 
+def test_extract_7z_passes_no_window_flag(tmp_path, monkeypatch):
+    seven, archive = _seven_and_archive(tmp_path)
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(args=cmd, returncode=0)
+
+    monkeypatch.setattr("linua_updater.core.extractor.subprocess.run", fake_run)
+    ok, msg = Extractor(FakeLogger()).extract_7z(seven, archive, str(tmp_path / "out"))
+    assert ok
+    assert msg == "OK"
+    assert captured.get("creationflags") == getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def test_rejects_windows_drive_absolute_path(tmp_path):
     archive = _zip_with([("CC:/evil.txt", "oops")])
     ok, msg = Extractor(FakeLogger()).extract_zip(archive, str(tmp_path))

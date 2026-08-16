@@ -56,3 +56,22 @@
 
 ## Platform Support
 Tests and features must support Linux, macOS and Windows unless feature is explicitly OS-specific.
+
+## Tasks format
+Example:
+```
+# Task N — Implement a very usefull feature
+
+## Context
+...
+## How it works now
+...
+## How it should work
+...
+## What needs fixing
+...
+## Tests
+...
+## Docs
+...
+```

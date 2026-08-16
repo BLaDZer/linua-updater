@@ -106,8 +106,8 @@ All dialogs share a dark theme via inline Qt stylesheets.
 | Class | Responsibility |
 | --- | --- |
 | `SmartDownloader` | Downloads with retries (backoff), byte-level resume via `Range` header + `.part` temp files, slow-speed abort (<50 KB/s), proxy fallback, and mirror fallback; honors the `use_proxy`/`resume_downloads`/`cleanup_temp` settings and supports `pause()`/`resume()` via a `threading.Condition` in the chunk loop (also cancellable from pause) |
-| `TorrentDownloader` | Drives `aria2c` as a subprocess for magnet links; exposes the same `set_progress_callback`/`cancel`/`pause`/`resume`/`download` surface as `SmartDownloader`; parses `--summary-interval=1` output for progress callbacks |
-| `Extractor` | Extracts single ZIP archives (validated with `testzip()` and per-member path validation) or multipart 7-Zip archives via `7z.exe` |
+| `TorrentDownloader` | Drives `aria2c` as a subprocess for magnet links; exposes the same `set_progress_callback`/`cancel`/`pause`/`resume`/`download` surface as `SmartDownloader`; parses `--summary-interval=1` output for progress callbacks; spawns `aria2c` with `CREATE_NO_WINDOW` on Windows and reaps the child on cancel/close |
+| `Extractor` | Extracts single ZIP archives (validated with `testzip()` and per-member path validation) or multipart 7-Zip archives via `7z.exe`; `extract_7z` runs the 7-Zip binary with `CREATE_NO_WINDOW` on Windows so no console window appears |
 | `SingleDLCInstaller` | Orchestrates download → extract for single-archive DLC |
 | `MultiPartInstaller` | Downloads each `.7z.001/002/...` part (weighted progress across parts), then extracts via 7-Zip; supported in code but not exercised by the shipped catalog |
 | `TorrentInstaller` | Downloads a magnet via `TorrentDownloader`, verifies checksums against `info['checksum']`, then extracts the archive through `Extractor`; falls back to `parts`/`url` on any failure |

@@ -52,7 +52,7 @@ class Extractor:
                 return False, "Archive not found"
             os.makedirs(out_dir, exist_ok=True)
             cmd = [seven, "x", archive_path, f"-o{out_dir}", "-y"]
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=300, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             return True, "OK"
         except subprocess.CalledProcessError as e:
             return False, f"7z error: {e.stderr}"

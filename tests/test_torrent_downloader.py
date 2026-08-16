@@ -2,10 +2,11 @@ import os
 import subprocess
 import threading
 import time
+import types
 
 import pytest
 
-from linua_updater.core.torrent_downloader import TorrentDownloader
+from linua_updater.core.torrent_downloader import TorrentDownloader, _popen_kwargs
 
 
 class FakeProcess:
@@ -42,6 +43,10 @@ class FakeProcess:
         return self.exit_code
 
     def terminate(self):
+        with self._lock:
+            self._terminated = True
+
+    def kill(self):
         with self._lock:
             self._terminated = True
 
@@ -205,3 +210,65 @@ def test_download_pause_resume_restarts(tmp_path, patch_finder, monkeypatch):
 
     assert result[0][0] is True
     assert call_count[0] == 2  # aria2c was re-invoked (restarted) after resume
+
+
+def test_popen_kwargs_linux_no_creationflags(monkeypatch):
+    import linua_updater.core.torrent_downloader as td
+    fake = types.SimpleNamespace()
+    monkeypatch.setattr(td, "subprocess", fake)
+    assert _popen_kwargs() == {}
+
+
+def test_popen_kwargs_windows_sets_creationflags(monkeypatch):
+    import linua_updater.core.torrent_downloader as td
+    fake = types.SimpleNamespace(CREATE_NO_WINDOW=0x08000000)
+    monkeypatch.setattr(td, "subprocess", fake)
+    assert _popen_kwargs() == {"creationflags": 0x08000000}
+
+
+def test_download_passes_no_window_flag(tmp_path, monkeypatch):
+    aria2c = tmp_path / "aria2c"
+    aria2c.write_text("")
+    captured = {}
+
+    def capture_popen(*a, **kw):
+        captured.update(kw)
+        return FakeProcess(
+            lines=["[#hash123 100MiB/100MiB(100%) CN:1 DL:1.0MiB]"],
+            exit_code=0,
+        )
+
+    monkeypatch.setattr(subprocess, "Popen", capture_popen)
+    out_dir = str(tmp_path / "out")
+    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
+    ok, _ = dl.download("magnet:?xt=foo", out_dir)
+    assert ok is True
+    flag = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    if flag:
+        assert captured.get("creationflags") == flag
+    else:
+        assert "creationflags" not in captured
+
+
+def test_cancel_kills_when_terminate_ignored():
+    class StubbornProcess(FakeProcess):
+        def __init__(self):
+            super().__init__(lines=[], exit_code=0)
+            self.killed = False
+
+        def poll(self):
+            return None  # always "running"
+
+        def wait(self, timeout=None):
+            if timeout is not None:
+                raise subprocess.TimeoutExpired(cmd="aria2c", timeout=timeout)
+            return self.exit_code
+
+        def kill(self):
+            self.killed = True
+
+    proc = StubbornProcess()
+    dl = TorrentDownloader(FakeLogger(), aria2_path="/fake/aria2c")
+    dl._process = proc
+    dl.cancel()
+    assert proc.killed is True

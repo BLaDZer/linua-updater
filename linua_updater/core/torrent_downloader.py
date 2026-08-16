@@ -7,6 +7,15 @@ import time
 from linua_updater.utils.aria2 import Aria2Finder
 
 
+def _popen_kwargs():
+    """Popen kwargs hiding the console window on Windows. No-op elsewhere."""
+    kwargs = {}
+    flag = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    if flag:
+        kwargs["creationflags"] = flag
+    return kwargs
+
+
 class TorrentDownloader:
     def __init__(self, logger, aria2_path=None, cleanup=True):
         self.logger = logger
@@ -29,6 +38,17 @@ class TorrentDownloader:
             if self._process and self._process.poll() is None:
                 try:
                     self._process.terminate()
+                    try:
+                        self._process.wait(timeout=2)
+                    except Exception:
+                        try:
+                            self._process.kill()
+                        except Exception:
+                            pass
+                        try:
+                            self._process.wait()
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
@@ -113,6 +133,7 @@ class TorrentDownloader:
                     stderr=subprocess.PIPE,
                     text=True,
                     bufsize=1,
+                    **_popen_kwargs(),
                 )
             except Exception as e:
                 return False, str(e)
