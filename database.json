@@ -12,7 +12,41 @@
     },
     "EP02": {
       "name": "Get Together",
-      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP02.zip",
+      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP02.zip"
+    },
+    "EP03": {
+      "name": "City Living",
+      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP03.zip"
+    },
+    "EP04": {
+      "name": "Cats and Dogs",
+      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP04.zip"
+    },
+    "EP05": {
+      "name": "Seasons",
+      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP05.zip"
+    },
+    "EP06": {
+      "name": "Get Famous",
+      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.zip",
+      "parts": [
+        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.001",
+        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.002",
+        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.003",
+        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.004",
+        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.005",
+        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.006",
+        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.007"
+      ],
+      "checksum": {
+        "sha256": "6ca5aae51994b388c0c1754b35a796b0aa2a70134d7d19cff3ad2d7c5e39f76b",
+        "sha1": "cdd5c4ebe754780e7bdf9bbadac040744d933b91",
+        "md5": "a6a32c44748cb864f95395060f02373b"
+      }
+    },
+    "EP07": {
+      "name": "Island Living",
+      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP07.zip",
       "mirrors": [
         {
           "type": "parts",
@@ -63,40 +97,6 @@
           "priority": 20
         }
       ]
-    },
-    "EP03": {
-      "name": "City Living",
-      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP03.zip"
-    },
-    "EP04": {
-      "name": "Cats and Dogs",
-      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP04.zip"
-    },
-    "EP05": {
-      "name": "Seasons",
-      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP05.zip"
-    },
-    "EP06": {
-      "name": "Get Famous",
-      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.zip",
-      "parts": [
-        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.001",
-        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.002",
-        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.003",
-        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.004",
-        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.005",
-        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.006",
-        "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP06.7z.007"
-      ],
-      "checksum": {
-        "sha256": "6ca5aae51994b388c0c1754b35a796b0aa2a70134d7d19cff3ad2d7c5e39f76b",
-        "sha1": "cdd5c4ebe754780e7bdf9bbadac040744d933b91",
-        "md5": "a6a32c44748cb864f95395060f02373b"
-      }
-    },
-    "EP07": {
-      "name": "Island Living",
-      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP07.zip"
     },
     "EP08": {
       "name": "Discover University",
