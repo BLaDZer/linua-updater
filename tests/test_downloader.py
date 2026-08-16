@@ -94,6 +94,18 @@ def test_cancel_prevents_write(tmp_path, monkeypatch):
     assert msg == "Cancelled"
 
 
+def test_download_returns_cancelled_when_already_cancelled(tmp_path, monkeypatch):
+    session = FakeSession([])
+    monkeypatch.setattr(dl_mod.requests, "Session", lambda: session)
+    dl = SmartDownloader(FakeLogger())
+    dl.cancel()
+    out = tmp_path / "file.zip"
+    ok, msg = dl.download("https://example.com/file.zip", str(out))
+    assert ok is False
+    assert msg == "Cancelled"
+    assert session.calls == []
+
+
 def test_pause_blocks_until_resume(tmp_path, monkeypatch):
     dl, session = _make_downloader(monkeypatch, FakeResponse(chunks=[b"a", b"b", b"c"]))
     dl.pause()

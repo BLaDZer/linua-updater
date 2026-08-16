@@ -31,6 +31,11 @@ class FakeDb:
         return self.data
 
 
+class FakeStats:
+    def record_error(self, dlc_id, reason):
+        pass
+
+
 @pytest.fixture
 def worker(tmp_path):
     worker = InstallWorker.__new__(InstallWorker)
@@ -62,6 +67,56 @@ def test_install_single_cancelled_returns_cancelled(worker, tmp_path):
     assert ok is False
     assert msg == "Cancelled"
     assert worker._active_downloaders == []
+
+
+def test_install_single_torrent_cancelled_no_fallback(worker, tmp_path, monkeypatch):
+    worker.db = FakeDb({"EP01": {"magnet": "magnet:?xt=foo", "url": "http://example.com/EP01.zip"}})
+    worker.logger = None
+    worker.game_path = tmp_path
+    worker.settings = {}
+    worker.mirrors = {}
+    worker._cancelled = False
+    worker.stats = FakeStats()
+    worker.extractor = None
+    worker._active_downloaders = []
+
+    direct_downloads = []
+
+    class FakeTorrentDownloader:
+        def __init__(self, logger):
+            self.logger = logger
+
+        def cancel(self):
+            pass
+
+        def set_progress_callback(self, callback):
+            pass
+
+        def download(self, magnet, temp, dlc_name=None, expected_size=None):
+            return False, "Cancelled"
+
+    class FakeSmartDownloader:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def download(self, url, out_path, **kwargs):
+            direct_downloads.append(url)
+            return True, "OK"
+
+    monkeypatch.setattr(
+        "linua_updater.workers.install_worker.TorrentDownloader",
+        FakeTorrentDownloader,
+    )
+    monkeypatch.setattr(
+        "linua_updater.workers.install_worker.SmartDownloader",
+        FakeSmartDownloader,
+    )
+
+    dlc_id, ok, msg = worker._install_single("EP01")
+    assert dlc_id == "EP01"
+    assert ok is False
+    assert msg == "Cancelled"
+    assert direct_downloads == []
 
 
 def test_save_download_state_writes_queue_and_state(worker, tmp_path):

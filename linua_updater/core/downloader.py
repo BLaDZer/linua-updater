@@ -71,6 +71,10 @@ class SmartDownloader:
         temp_path = out_path + ".part"
         downloaded = 0
 
+        if self._cancelled:
+            self._active = False
+            return False, "Cancelled"
+
         if resume and os.path.exists(temp_path):
             downloaded = os.path.getsize(temp_path)
             self.logger.log(f"Resuming download: {downloaded / (1024*1024):.1f}MB")
@@ -81,8 +85,15 @@ class SmartDownloader:
             self._active = False
             return True, "OK"
 
+        if self._cancelled:
+            self._active = False
+            return False, "Cancelled"
+
         if self.diagnostics and self.diagnostics.working_proxies and self.use_proxy:
             for proxy in self.diagnostics.working_proxies:
+                if self._cancelled:
+                    self._active = False
+                    return False, "Cancelled"
                 self.set_proxy(proxy)
                 success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
                 if success:
@@ -90,9 +101,16 @@ class SmartDownloader:
                     self._active = False
                     return True, "Downloaded via proxy"
 
+        if self._cancelled:
+            self._active = False
+            return False, "Cancelled"
+
         mirrors = self.mirrors
         for domain, mirror in mirrors.items():
             if domain in url:
+                if self._cancelled:
+                    self._active = False
+                    return False, "Cancelled"
                 mirror_url = url.replace(domain, mirror)
                 self.set_proxy(None)
                 success, msg = self._try_download_with_retry(mirror_url, out_path, temp_path, downloaded, expected_size)
@@ -107,6 +125,8 @@ class SmartDownloader:
 
     def _try_download_with_retry(self, url, out_path, temp_path, start_byte=0, expected_size=None, max_retries=3):
         for attempt in range(max_retries):
+            if self._cancelled:
+                return False, "Cancelled"
             try:
                 if attempt > 0:
                     delay = min(2 ** attempt, 10)

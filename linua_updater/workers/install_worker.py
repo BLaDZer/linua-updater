@@ -115,6 +115,8 @@ class InstallWorker(QObject):
                     installer.set_progress_callback(lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total))
                     success, message = installer.run()
                     if not success:
+                        if self._cancelled or message == "Cancelled":
+                            return dlc_id, False, "Cancelled"
                         self.logger.log(f"{dlc_id}: Torrent download failed ({message}), falling back to direct download", "WARNING")
                         info_orig = dict(info)
                         info_orig.pop("magnet", None)
