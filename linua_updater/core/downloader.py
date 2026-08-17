@@ -7,7 +7,6 @@ from typing import Callable, Dict, Optional, Tuple
 import requests
 
 from linua_updater.constants import (
-    APP_VERSION,
     DEFAULT_MIRRORS,
     GB,
     KB,
@@ -16,6 +15,7 @@ from linua_updater.constants import (
     RESULT_CANCELLED,
     RESULT_OK,
 )
+from linua_updater.core.clients import HTTPClient
 from linua_updater.core.diagnostics import NetworkDiagnostics
 from linua_updater.logging_util import ImprovedLogger
 
@@ -25,7 +25,6 @@ MIN_SPEED_THRESHOLD = 50 * KB
 MAX_FILE_SIZE = 10 * GB
 MAX_RETRIES = 3
 
-DOWNLOAD_TIMEOUT_SEC = 30
 MAX_RETRY_BACKOFF_SEC = 10
 SPEED_CHECK_DURATION_SEC = 10
 PAUSE_WAIT_TIMEOUT_SEC = 0.5
@@ -40,6 +39,7 @@ class SmartDownloader:
         resume: bool = True,
         cleanup: bool = True,
         mirrors: Optional[Dict[str, str]] = None,
+        client: Optional[HTTPClient] = None,
     ) -> None:
         self.logger = logger
         self.diagnostics = diagnostics
@@ -47,8 +47,7 @@ class SmartDownloader:
         self.use_proxy = use_proxy
         self.resume_enabled = resume
         self.cleanup = cleanup
-        self.session = requests.Session()
-        self.session.headers.update({"User-Agent": "Linua-Updater/" + APP_VERSION})
+        self.client = client or HTTPClient()
         self._cancelled = False
         self._paused = False
         self._active = False
@@ -63,10 +62,7 @@ class SmartDownloader:
         self._progress_callback = callback
 
     def set_proxy(self, proxy_dict: Optional[Dict[str, str]]) -> None:
-        if proxy_dict:
-            self.session.proxies = proxy_dict
-        else:
-            self.session.proxies = {}
+        self.client.set_proxy(proxy_dict)
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -199,10 +195,7 @@ class SmartDownloader:
     ) -> Tuple[bool, str]:
         try:
             os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-            headers = {}
-            if start_byte > 0:
-                headers["Range"] = f"bytes={start_byte}-"
-            with self.session.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT_SEC, verify=True, headers=headers) as response:
+            with self.client.get_stream(url, start_byte=start_byte) as response:
                 response.raise_for_status()
 
                 # Use expected_size if Content-Length is not available

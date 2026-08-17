@@ -30,16 +30,28 @@ class FakeResponse:
         return self._data
 
 
+class FakeHTTPClient:
+    def __init__(self, status_code=200, data=None, raise_on_json=False):
+        self._status = status_code
+        self._data = data
+        self._raise = raise_on_json
+        self.calls: list = []
+
+    def get(self, url, **kwargs):
+        self.calls.append(url)
+        return FakeResponse(self._status, self._data, self._raise)
+
+
 @pytest.fixture
 def isolated_db_env(tmp_path, monkeypatch):
     monkeypatch.setattr(AppPaths, "BASE_DIR", tmp_path)
     monkeypatch.setattr(AppPaths, "DATABASE_CACHE_FILE", tmp_path / "database_cache.json")
     monkeypatch.setattr(AppPaths, "DATABASE_CACHE_DURATION", 3600)
 
-    def offline(url, timeout=10):
-        return FakeResponse(404)
+    def offline(**kwargs):
+        return FakeHTTPClient(404)
 
-    monkeypatch.setattr("linua_updater.core.database.requests.get", offline)
+    monkeypatch.setattr("linua_updater.core.database.HTTPClient", offline)
     return tmp_path
 
 
@@ -98,17 +110,11 @@ def test_fallback_ep06_parts_mirror(isolated_db_env):
     assert all(p.getType() == "url" for p in parts)
 
 
-def test_fresh_cache_used_without_download(cache_file, monkeypatch):
+def test_fresh_cache_used_without_download(cache_file):
     _write_cache(cache_file, _sample_payload())
-    calls = []
-
-    def fake_get(url, timeout=10):
-        calls.append(url)
-        return FakeResponse(404)
-
-    monkeypatch.setattr("linua_updater.core.database.requests.get", fake_get)
-    db = DLCDatabase()
-    assert calls == []
+    client = FakeHTTPClient(404)
+    db = DLCDatabase(client=client)
+    assert client.calls == []
     assert db.all()["EP01"].getName() == "Get to Work"
     assert db.data["version"] == "1.2.3"
     assert db.get_key("updatedAt") == "2026-08-15T00:00:00Z"
@@ -130,17 +136,11 @@ def test_provided_size_not_overwritten(cache_file):
     assert db.all()["EP01"].getSize() == 12345
 
 
-def test_expired_cache_triggers_download(cache_file, monkeypatch):
+def test_expired_cache_triggers_download(cache_file):
     _write_cache(cache_file, {"dlc": {"EP01": {"name": "old", "url": "x"}}}, timestamp=time.time() - 7200)
-    calls = []
-
-    def fake_get(url, timeout=10):
-        calls.append(url)
-        return FakeResponse(200, _sample_payload())
-
-    monkeypatch.setattr("linua_updater.core.database.requests.get", fake_get)
-    db = DLCDatabase()
-    assert calls == [db.db_url]
+    client = FakeHTTPClient(200, _sample_payload())
+    db = DLCDatabase(client=client)
+    assert client.calls == [db.db_url]
     assert db.all()["EP01"].getName() == "Get to Work"
     saved = json.loads(cache_file.read_text(encoding="utf-8"))
     assert saved["database"]["version"] == "1.2.3"
@@ -148,12 +148,8 @@ def test_expired_cache_triggers_download(cache_file, monkeypatch):
     assert db.db_url in db.source_description()
 
 
-def test_missing_cache_successful_download_writes_cache(cache_file, monkeypatch):
-    monkeypatch.setattr(
-        "linua_updater.core.database.requests.get",
-        lambda url, timeout=10: FakeResponse(200, _sample_payload()),
-    )
-    db = DLCDatabase()
+def test_missing_cache_successful_download_writes_cache(cache_file):
+    db = DLCDatabase(client=FakeHTTPClient(200, _sample_payload()))
     assert db.all()["EP01"].getName() == "Get to Work"
     assert db.get_key("version") == "1.2.3"
     saved = json.loads(cache_file.read_text(encoding="utf-8"))
@@ -187,12 +183,8 @@ def test_broken_remote_missing_dlc_uses_fallback(cache_file):
     assert db.all()["EP01"].getName() == "Get to Work"
 
 
-def test_broken_remote_invalid_json_uses_fallback(cache_file, monkeypatch):
-    monkeypatch.setattr(
-        "linua_updater.core.database.requests.get",
-        lambda url, timeout=10: FakeResponse(200, None, raise_on_json=True),
-    )
-    db = DLCDatabase()
+def test_broken_remote_invalid_json_uses_fallback(cache_file):
+    db = DLCDatabase(client=FakeHTTPClient(200, None, raise_on_json=True))
     assert len(db.all()) == 109
 
 
@@ -208,18 +200,15 @@ def test_cache_without_dlc_key_falls_back(cache_file):
     assert len(db.all()) == 109
 
 
-def test_refresh_with_fresh_cache_replaces_it_from_remote(cache_file, monkeypatch):
+def test_refresh_with_fresh_cache_replaces_it_from_remote(cache_file):
     _write_cache(cache_file, _sample_payload())
     expected = {
         "version": "9.9.9",
         "updatedAt": "2026-08-16T00:00:00Z",
         "dlc": {"EP01": {"name": "Get to Work 2", "url": "https://example.com/EP01_v2.zip"}},
     }
-    monkeypatch.setattr(
-        "linua_updater.core.database.requests.get",
-        lambda url, timeout=10: FakeResponse(200, json.loads(json.dumps(expected))),
-    )
-    db = DLCDatabase()
+    client = FakeHTTPClient(200, json.loads(json.dumps(expected)))
+    db = DLCDatabase(client=client)
     assert db.source == "cache"
     assert db.refresh() is True
     assert db.source == "remote"
@@ -241,12 +230,8 @@ def test_refresh_failure_removes_cache_and_falls_back(cache_file):
     assert "built-in fallback data" in db.source_description()
 
 
-def test_refresh_reapplies_size_enrichment(cache_file, monkeypatch):
+def test_refresh_reapplies_size_enrichment(cache_file):
     _write_cache(cache_file, _sample_payload())
-    monkeypatch.setattr(
-        "linua_updater.core.database.requests.get",
-        lambda url, timeout=10: FakeResponse(200, _sample_payload()),
-    )
-    db = DLCDatabase()
+    db = DLCDatabase(client=FakeHTTPClient(200, _sample_payload()))
     assert db.refresh() is True
     assert db.all()["EP01"].getSize() == 1900000000

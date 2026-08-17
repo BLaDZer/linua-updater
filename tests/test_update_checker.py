@@ -33,6 +33,19 @@ class FakeResponse:
         return self._data
 
 
+class FakeHTTPClient:
+    def __init__(self, response=None, exc=None):
+        self._response = response
+        self._exc = exc
+        self.calls = []
+
+    def get(self, url, **kwargs):
+        self.calls.append(url)
+        if self._exc is not None:
+            raise self._exc
+        return self._response
+
+
 def test_compare_versions():
     checker = UpdateChecker()
     assert checker._compare_versions("4.4.0", "4.3.0")
@@ -54,105 +67,78 @@ def test_compare_versions_shorter_major_wins_rule():
     assert not checker._compare_versions("9.9.9", "10.0")
 
 
-def test_check_update_available_emits_signal(isolated_update_cache, monkeypatch):
-    def fake_get(url, timeout):
-        return FakeResponse(200, {"version": "v" + _newer_version(), "download_url": "https://example.com/dl"})
-
-    monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
-    checker = UpdateChecker()
+def test_check_update_available_emits_signal(isolated_update_cache):
+    client = FakeHTTPClient(FakeResponse(200, {"version": "v" + _newer_version(), "download_url": "https://example.com/dl"}))
+    checker = UpdateChecker(client=client)
     emitted = []
     checker.update_available.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
     assert emitted == [(_newer_version(), "https://example.com/dl")]
 
 
-def test_check_no_update_emits(isolated_update_cache, monkeypatch):
-    def fake_get(url, timeout):
-        return FakeResponse(200, {"version": "4.3.0", "download_url": "https://example.com/dl"})
-
-    monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
-    checker = UpdateChecker()
+def test_check_no_update_emits(isolated_update_cache):
+    client = FakeHTTPClient(FakeResponse(200, {"version": "4.3.0", "download_url": "https://example.com/dl"}))
+    checker = UpdateChecker(client=client)
     emitted = []
     checker.no_update.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
     assert emitted == [()]
 
 
-def test_check_http_error_emits_failed(isolated_update_cache, monkeypatch):
-    def fake_get(url, timeout):
-        return FakeResponse(500, {})
-
-    monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
-    checker = UpdateChecker()
+def test_check_http_error_emits_failed(isolated_update_cache):
+    client = FakeHTTPClient(FakeResponse(500, {}))
+    checker = UpdateChecker(client=client)
     emitted = []
     checker.check_failed.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
     assert emitted == [("HTTP 500",)]
 
 
-def test_check_timeout_emits_failed(isolated_update_cache, monkeypatch):
-    def fake_get(url, timeout):
-        raise requests.exceptions.Timeout()
-
-    monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
-    checker = UpdateChecker()
+def test_check_timeout_emits_failed(isolated_update_cache):
+    client = FakeHTTPClient(exc=requests.exceptions.Timeout())
+    checker = UpdateChecker(client=client)
     emitted = []
     checker.check_failed.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
     assert emitted == [("Timeout",)]
 
 
-def test_check_connection_error_emits_failed(isolated_update_cache, monkeypatch):
-    def fake_get(url, timeout):
-        raise requests.exceptions.ConnectionError()
-
-    monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
-    checker = UpdateChecker()
+def test_check_connection_error_emits_failed(isolated_update_cache):
+    client = FakeHTTPClient(exc=requests.exceptions.ConnectionError())
+    checker = UpdateChecker(client=client)
     emitted = []
     checker.check_failed.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
     assert emitted == [("Connection error",)]
 
 
-def test_check_uses_fresh_cache(isolated_update_cache, monkeypatch):
+def test_check_uses_fresh_cache(isolated_update_cache):
     (isolated_update_cache / "update_cache.json").write_text(json.dumps({
         "timestamp": time.time(),
         "latest_version": _newer_version(),
         "download_url": "https://example.com/dl",
     }))
-    calls = []
-
-    def fake_get(url, timeout):
-        calls.append(url)
-        raise AssertionError("network must not be called for fresh cache")
-
-    monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
-    checker = UpdateChecker()
+    client = FakeHTTPClient(exc=AssertionError("network must not be called for fresh cache"))
+    checker = UpdateChecker(client=client)
     emitted = []
     checker.update_available.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
     assert emitted == [(_newer_version(), "https://example.com/dl")]
-    assert calls == []
+    assert client.calls == []
 
 
-def test_check_expired_cache_ignored(isolated_update_cache, monkeypatch):
+def test_check_expired_cache_ignored(isolated_update_cache):
     (isolated_update_cache / "update_cache.json").write_text(json.dumps({
         "timestamp": time.time() - 7200,
         "latest_version": APP_VERSION,
         "download_url": "https://example.com/dl",
     }))
-    calls = []
-
-    def fake_get(url, timeout):
-        calls.append(url)
-        return FakeResponse(200, {"version": _newer_version(), "download_url": "https://example.com/new"})
-
-    monkeypatch.setattr("linua_updater.workers.update_checker.requests.get", fake_get)
-    checker = UpdateChecker()
+    client = FakeHTTPClient(FakeResponse(200, {"version": _newer_version(), "download_url": "https://example.com/new"}))
+    checker = UpdateChecker(client=client)
     emitted = []
     checker.update_available.connect(lambda *a: emitted.append(a))
     checker.check_for_updates()
-    assert calls == [checker.version_url]
+    assert client.calls == [checker.version_url]
     assert emitted == [(_newer_version(), "https://example.com/new")]
 
 

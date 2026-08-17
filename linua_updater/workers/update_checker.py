@@ -13,6 +13,7 @@ from linua_updater.constants import (
     HTTP_TIMEOUT_SEC,
     SECONDS_IN_MINUTE,
 )
+from linua_updater.core.clients import HTTPClient
 from linua_updater.logging_util import ImprovedLogger
 from linua_updater.paths import AppPaths
 
@@ -22,9 +23,15 @@ class UpdateChecker(QObject):
     no_update = pyqtSignal()
     check_failed = pyqtSignal(str)
 
-    def __init__(self, logger: Optional[ImprovedLogger] = None, version_url: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        logger: Optional[ImprovedLogger] = None,
+        version_url: Optional[str] = None,
+        client: Optional[HTTPClient] = None,
+    ) -> None:
         super().__init__()
         self.logger = logger
+        self.client = client or HTTPClient()
         self.version_url = version_url or DEFAULT_VERSION_CHECK_URL
         self.cache_file = AppPaths.UPDATE_CACHE_FILE
         self.cache_duration = AppPaths.UPDATE_CACHE_DURATION
@@ -77,7 +84,7 @@ class UpdateChecker(QObject):
 
             # Perform actual check
             self.log("Checking for updates...", "INFO")
-            response = requests.get(self.version_url, timeout=HTTP_TIMEOUT_SEC)
+            response = self.client.get(self.version_url, timeout=HTTP_TIMEOUT_SEC)
 
             if response.status_code == HTTP_OK:
                 data = response.json()

@@ -4,8 +4,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import requests
-
 from linua_updater.constants import (
     CACHE_TIMESTAMP_KEY,
     DATABASE_DLC_KEY_SIZE,
@@ -17,6 +15,7 @@ from linua_updater.constants import (
     SECONDS_IN_HOUR,
     SIZE_ESTIMATES,
 )
+from linua_updater.core.clients import HTTPClient
 from linua_updater.core.models import DLCInfo
 from linua_updater.paths import AppPaths
 
@@ -42,7 +41,14 @@ class DLCDatabase:
     4. finally the hardcoded :data:`~linua_updater.constants.DEFAULT_DATABASE_FALLBACK`.
     """
 
-    def __init__(self, db_url: Optional[str] = None, cache_file: Optional[Path] = None, cache_duration: Optional[float] = None) -> None:
+    def __init__(
+        self,
+        db_url: Optional[str] = None,
+        cache_file: Optional[Path] = None,
+        cache_duration: Optional[float] = None,
+        client: Optional[HTTPClient] = None,
+    ) -> None:
+        self.client = client or HTTPClient()
         self.db_url = db_url or DEFAULT_DATABASE_URL
         self.cache_file = cache_file or AppPaths.DATABASE_CACHE_FILE
         self.cache_duration = cache_duration if cache_duration is not None else AppPaths.DATABASE_CACHE_DURATION
@@ -107,7 +113,7 @@ class DLCDatabase:
 
     def _download(self) -> Optional[Dict[str, Any]]:
         try:
-            response = requests.get(self.db_url, timeout=HTTP_TIMEOUT_SEC)
+            response = self.client.get(self.db_url, timeout=HTTP_TIMEOUT_SEC)
             if response.status_code == HTTP_OK:
                 payload = response.json()
                 if isinstance(payload, dict) and self._is_valid(payload):

@@ -4,6 +4,7 @@ import time
 import pytest
 
 from linua_updater.constants import GB, MB
+from linua_updater.core.clients import HTTPClient
 import linua_updater.core.downloader as dl_mod
 from linua_updater.core.downloader import SmartDownloader
 
@@ -82,8 +83,7 @@ def no_sleep(monkeypatch):
 
 def _make_downloader(monkeypatch, *responses):
     session = FakeSession(list(responses))
-    monkeypatch.setattr(dl_mod.requests, "Session", lambda: session)
-    return SmartDownloader(FakeLogger()), session
+    return SmartDownloader(FakeLogger(), client=HTTPClient(session=session)), session
 
 
 def test_cancel_prevents_write(tmp_path, monkeypatch):
@@ -97,8 +97,7 @@ def test_cancel_prevents_write(tmp_path, monkeypatch):
 
 def test_download_returns_cancelled_when_already_cancelled(tmp_path, monkeypatch):
     session = FakeSession([])
-    monkeypatch.setattr(dl_mod.requests, "Session", lambda: session)
-    dl = SmartDownloader(FakeLogger())
+    dl = SmartDownloader(FakeLogger(), client=HTTPClient(session=session))
     dl.cancel()
     out = tmp_path / "file.zip"
     ok, msg = dl.download("https://example.com/file.zip", str(out))

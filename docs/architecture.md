@@ -31,8 +31,8 @@ linua_updater/
 ├── logging_util.py        # ImprovedLogger + _reveal_in_explorer
 ├── utils/                 # ConfigManager, SingleInstanceLock, AdminElevator, DiskSpaceChecker, SevenZipFinder
 ├── persistence/           # DownloadQueue, DownloadState (JSON state files)
-├── core/                  # DLCDatabase (DLCInfo/DownloadSource/CheckSums), SmartDownloader, Extractor,
-│                          #  GameDetector, NetworkDiagnostics, ParallelInstallManager, SingleDLCInstaller,
+├── core/                  # DLCDatabase (DLCInfo/DownloadSource/CheckSums), SmartDownloader, HTTPClient (clients.py),
+│                          #  Extractor, GameDetector, NetworkDiagnostics, ParallelInstallManager, SingleDLCInstaller,
 │                          #  MultiPartInstaller, TorrentInstaller, InstallationStats
 ├── workers/               # UpdateChecker, InstallWorker, UninstallWorker, DiagnosticsWorker,
 │                          #  DatabaseRefreshWorker (QObject/QThread)
@@ -105,7 +105,7 @@ All dialogs share a dark theme via inline Qt stylesheets.
 
 | Class | Responsibility |
 | --- | --- |
-| `SmartDownloader` | Downloads with retries (backoff), byte-level resume via `Range` header + `.part` temp files, slow-speed abort (<50 KB/s), proxy fallback, and mirror fallback; honors the `use_proxy`/`resume_downloads`/`cleanup_temp` settings and supports `pause()`/`resume()` via a `threading.Condition` in the chunk loop (also cancellable from pause). Exposes `resume()` as a method and stores the resume preference in `resume_enabled` (renamed to avoid shadowing the method). Logs the download lifecycle (start `Downloading <display> from <source>`, pause/resume, finished `Downloaded <display> (N MB)`, and total failure) with **no** periodic progress lines |
+| `SmartDownloader` | Downloads with retries (backoff), byte-level resume via `Range` header + `.part` temp files, slow-speed abort (<50 KB/s), proxy fallback, and mirror fallback; honors the `use_proxy`/`resume_downloads`/`cleanup_temp` settings and supports `pause()`/`resume()` via a `threading.Condition` in the chunk loop (also cancellable from pause). The low-level transport (`requests.Session`, `User-Agent`, proxies, streaming `GET` with Range/timeout/verify) is delegated to `HTTPClient` in `core/clients.py`, which is now the app-wide generic HTTP transport — it exposes `get`/`head`/`post` plus the `get_stream` download convenience, with per-call `timeout`/`verify`/`proxies` overrides, and is shared by `SmartDownloader`, `DLCDatabase`, `UpdateChecker` and `NetworkDiagnostics`. `SmartDownloader` only orchestrates. Exposes `resume()` as a method and stores the resume preference in `resume_enabled` (renamed to avoid shadowing the method). Logs the download lifecycle (start `Downloading <display> from <source>`, pause/resume, finished `Downloaded <display> (N MB)`, and total failure) with **no** periodic progress lines |
 | `TorrentDownloader` | Drives `aria2c` as a subprocess for magnet links; exposes the same `set_progress_callback`/`cancel`/`pause`/`resume`/`download` surface as `SmartDownloader`; parses `--summary-interval=1` output for progress callbacks; spawns `aria2c` with `CREATE_NO_WINDOW` on Windows and reaps the child on cancel/close. Logs the lifecycle (start with the full magnet link, pause/resume, `aria2c not found`/exit-code, cancelled, complete) with **no** periodic progress lines |
 | `Extractor` | Extracts single ZIP archives (validated with `testzip()` and per-member path validation) or multipart 7-Zip archives via `7z.exe`; `extract_7z` runs the 7-Zip binary with `CREATE_NO_WINDOW` on Windows so no console window appears |
 | `SingleDLCInstaller` | Orchestrates download → extract for single-archive DLC |

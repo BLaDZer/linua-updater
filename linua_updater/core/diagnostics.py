@@ -1,8 +1,6 @@
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
-
 from linua_updater.constants import (
     CLOUDFLARE_WARP_URL,
     DEFAULT_PROXY_PORTS,
@@ -13,6 +11,7 @@ from linua_updater.constants import (
     HTTP_TIMEOUT_SEC,
     MILLISECONDS_IN_SECOND,
 )
+from linua_updater.core.clients import HTTPClient
 
 REGION_TIMEOUT_SEC = 5
 
@@ -28,9 +27,14 @@ CONNECTION_UNKNOWN = "unknown"
 
 class NetworkDiagnostics:
     def __init__(
-        self, logger: Optional[Any] = None, region_api: Optional[str] = None, proxy_ports: Optional[List[int]] = None
+        self,
+        logger: Optional[Any] = None,
+        region_api: Optional[str] = None,
+        proxy_ports: Optional[List[int]] = None,
+        client: Optional[HTTPClient] = None,
     ) -> None:
         self.logger: Optional[Any] = logger
+        self.client = client or HTTPClient()
         self.region_api: str = region_api or DEFAULT_REGION_API_URL
         self.proxy_ports: List[int] = proxy_ports if proxy_ports else list(DEFAULT_PROXY_PORTS)
         self.can_reach_github: bool = False
@@ -45,7 +49,7 @@ class NetworkDiagnostics:
 
     def detect_region(self) -> bool:
         try:
-            response = requests.get(self.region_api, timeout=REGION_TIMEOUT_SEC)
+            response = self.client.get(self.region_api, timeout=REGION_TIMEOUT_SEC)
             data = response.json()
             country_code = data.get("country_code", "")
             if country_code in RESTRICTED_COUNTRIES:
@@ -57,7 +61,7 @@ class NetworkDiagnostics:
 
     def test_connection(self, url: str, timeout: int = REGION_TIMEOUT_SEC) -> bool:
         try:
-            response = requests.head(url, timeout=timeout, allow_redirects=True)
+            response = self.client.head(url, timeout=timeout, allow_redirects=True)
             return response.status_code < HTTP_CLIENT_ERROR
         except:
             return False
@@ -65,7 +69,7 @@ class NetworkDiagnostics:
     def test_proxy(self, proxy_dict: Dict[str, str]) -> Tuple[bool, float]:
         try:
             start = time.time()
-            response = requests.get(GITHUB_URL, proxies=proxy_dict, timeout=HTTP_TIMEOUT_SEC, verify=True)
+            response = self.client.get(GITHUB_URL, proxies=proxy_dict, timeout=HTTP_TIMEOUT_SEC, verify=True)
             elapsed = (time.time() - start) * MILLISECONDS_IN_SECOND
             return response.status_code < HTTP_CLIENT_ERROR, elapsed
         except:

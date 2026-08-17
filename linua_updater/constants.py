@@ -23,6 +23,7 @@ GB = MB * 1024
 
 # HTTP timeouts (seconds)
 HTTP_TIMEOUT_SEC = 10
+DEFAULT_DOWNLOAD_TIMEOUT_SEC = 30
 
 # HTTP status codes
 HTTP_OK = 200

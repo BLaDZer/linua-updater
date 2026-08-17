@@ -1,4 +1,3 @@
-import linua_updater.core.diagnostics as diag_mod
 from linua_updater.core.diagnostics import NetworkDiagnostics
 
 
@@ -16,82 +15,77 @@ class FakeResponse:
         return self._json
 
 
-class FakeRequests:
+class FakeHTTPClient:
     def __init__(self, responses=None):
         self.responses = list(responses or [])
+        self.calls = []
 
-    def _next(self):
+    def _next(self, url, method):
+        self.calls.append((method, url))
         item = self.responses.pop(0)
         if isinstance(item, Exception):
             raise item
         return item
 
-    def get(self, *args, **kwargs):
-        return self._next()
+    def get(self, url, **kwargs):
+        return self._next(url, "get")
 
-    def head(self, *args, **kwargs):
-        return self._next()
+    def head(self, url, **kwargs):
+        return self._next(url, "head")
 
 
-def test_detect_region_ru_marks_is_restricted_region(monkeypatch):
-    fake = FakeRequests([FakeResponse(json_data={"country_code": "RU"})])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    d = NetworkDiagnostics()
+def test_detect_region_ru_marks_is_restricted_region():
+    fake = FakeHTTPClient([FakeResponse(json_data={"country_code": "RU"})])
+    d = NetworkDiagnostics(client=fake)
     assert d.detect_region() is True
     assert d.is_restricted_region is True
 
 
-def test_detect_region_network_error_false(monkeypatch):
-    fake = FakeRequests([Exception("network down")])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    d = NetworkDiagnostics()
+def test_detect_region_network_error_false():
+    fake = FakeHTTPClient([Exception("network down")])
+    d = NetworkDiagnostics(client=fake)
     assert d.detect_region() is False
     assert d.is_restricted_region is False
 
 
-def test_test_connection_ok(monkeypatch):
-    fake = FakeRequests([FakeResponse(status_code=200)])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    assert NetworkDiagnostics().test_connection("https://example.com") is True
+def test_test_connection_ok():
+    fake = FakeHTTPClient([FakeResponse(status_code=200)])
+    assert NetworkDiagnostics(client=fake).test_connection("https://example.com") is True
 
 
-def test_test_connection_failure(monkeypatch):
-    fake = FakeRequests([Exception("network down")])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    assert NetworkDiagnostics().test_connection("https://example.com") is False
+def test_test_connection_failure():
+    fake = FakeHTTPClient([Exception("network down")])
+    assert NetworkDiagnostics(client=fake).test_connection("https://example.com") is False
 
 
-def test_test_proxy_returns_speed(monkeypatch):
-    fake = FakeRequests([FakeResponse(status_code=200)])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    ok, ms = NetworkDiagnostics().test_proxy({"http": "http://127.0.0.1:1080"})
+def test_test_proxy_returns_speed():
+    fake = FakeHTTPClient([FakeResponse(status_code=200)])
+    ok, ms = NetworkDiagnostics(client=fake).test_proxy({"http": "http://127.0.0.1:1080"})
     assert ok is True
     assert ms >= 0
 
 
-def test_test_proxy_error_returns_zero(monkeypatch):
-    fake = FakeRequests([Exception("network down")])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    ok, ms = NetworkDiagnostics().test_proxy({"http": "http://127.0.0.1:1080"})
+def test_test_proxy_error_returns_zero():
+    fake = FakeHTTPClient([Exception("network down")])
+    ok, ms = NetworkDiagnostics(client=fake).test_proxy({"http": "http://127.0.0.1:1080"})
     assert ok is False
     assert ms == 0
 
 
-def test_diagnose_direct(monkeypatch):
-    fake = FakeRequests([
+def test_diagnose_direct():
+    fake = FakeHTTPClient([
         FakeResponse(json_data={"country_code": "US"}),
         FakeResponse(status_code=200),
         FakeResponse(status_code=200),
     ])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    d = NetworkDiagnostics(FakeLogger())
+    d = NetworkDiagnostics(FakeLogger(), client=fake)
     d.diagnose()
     assert d.recommended_solution == "direct"
     assert d.proxy_needed is False
 
 
-def test_diagnose_proxy_found(monkeypatch):
-    fake = FakeRequests([
+def test_diagnose_proxy_found():
+    fake = FakeHTTPClient([
         FakeResponse(json_data={"country_code": "US"}),
         FakeResponse(status_code=500),
         FakeResponse(status_code=500),
@@ -102,16 +96,15 @@ def test_diagnose_proxy_found(monkeypatch):
         Exception("proxy down"),
         Exception("proxy down"),
     ])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    d = NetworkDiagnostics(FakeLogger())
+    d = NetworkDiagnostics(FakeLogger(), client=fake)
     d.diagnose()
     assert d.recommended_solution == "proxy"
     assert d.proxy_needed is True
     assert len(d.working_proxies) == 1
 
 
-def test_diagnose_vpn_needed(monkeypatch):
-    fake = FakeRequests([
+def test_diagnose_vpn_needed():
+    fake = FakeHTTPClient([
         FakeResponse(json_data={"country_code": "US"}),
         FakeResponse(status_code=500),
         FakeResponse(status_code=500),
@@ -122,8 +115,7 @@ def test_diagnose_vpn_needed(monkeypatch):
         Exception("proxy down"),
         Exception("proxy down"),
     ])
-    monkeypatch.setattr(diag_mod, "requests", fake)
-    d = NetworkDiagnostics(FakeLogger())
+    d = NetworkDiagnostics(FakeLogger(), client=fake)
     d.diagnose()
     assert d.recommended_solution == "vpn_needed"
     assert d.proxy_needed is True

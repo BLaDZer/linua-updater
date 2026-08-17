@@ -46,6 +46,7 @@ linua_updater/
 │   ├── models.py          # InstallationStats (+ DLC dataclass)
 │   ├── database.py        # DLCDatabase
 │   ├── downloader.py      # SmartDownloader
+│   ├── clients.py         # HTTPClient
 │   ├── extractor.py       # Extractor
 │   ├── detection.py       # GameDetector
 │   ├── diagnostics.py     # NetworkDiagnostics
@@ -89,6 +90,7 @@ Supporting files:
 | `InstallationStats` | `core/models.py` |
 | `DLCDatabase` | `core/database.py` |
 | `SmartDownloader` | `core/downloader.py` |
+| `HTTPClient` | `core/clients.py` |
 | `Extractor` | `core/extractor.py` |
 | `GameDetector` | `core/detection.py` |
 | `NetworkDiagnostics` | `core/diagnostics.py` |
