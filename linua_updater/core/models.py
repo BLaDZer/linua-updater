@@ -159,6 +159,7 @@ class InstallationStats:
         self.end_time = None
         self.downloads = {}
         self.errors = []
+        self.total_dlc = None
         self.total_bytes = 0
         self.total_time = 0
 
@@ -190,12 +191,14 @@ class InstallationStats:
                 return None
             total_duration = self.end_time - self.start_time
             avg_speed = (self.total_bytes / (1024 * 1024)) / self.total_time if self.total_time > 0 else 0
+            total_dlc = self.total_dlc if self.total_dlc is not None else len(self.downloads)
+            successful = len(self.downloads)
             return {
-                "total_dlc": len(self.downloads),
+                "total_dlc": total_dlc,
                 "total_size_mb": self.total_bytes / (1024 * 1024),
                 "total_duration_sec": total_duration,
                 "avg_speed_mbps": avg_speed,
-                "successful": len(self.downloads),
-                "failed": len(self.errors),
+                "successful": successful,
+                "failed": total_dlc - successful,
                 "errors": self.errors,
             }

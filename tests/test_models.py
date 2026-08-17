@@ -38,13 +38,14 @@ def test_record_error_accumulates():
 def test_summary_aggregates():
     stats = InstallationStats()
     stats.start()
+    stats.total_dlc = 3
     stats.record_download("EP01", 10 * 1024 * 1024, 2)
     stats.record_download("EP02", 20 * 1024 * 1024, 5)
     stats.record_error("EP03", "nope")
     stats.finish()
     summary = stats.get_summary()
     assert summary is not None
-    assert summary["total_dlc"] == 2
+    assert summary["total_dlc"] == 3
     assert summary["successful"] == 2
     assert summary["failed"] == 1
     assert summary["total_size_mb"] == 30
@@ -56,6 +57,7 @@ def test_summary_aggregates():
 def test_summary_thread_safety():
     stats = InstallationStats()
     stats.start()
+    stats.total_dlc = 100
 
     def worker(i):
         stats.record_download(f"DLC{i}", 1024 * 1024, 1)
@@ -68,10 +70,42 @@ def test_summary_thread_safety():
         t.join()
     stats.finish()
     summary = stats.get_summary()
+    assert summary["total_dlc"] == 100
     assert summary["successful"] == 50
     assert summary["failed"] == 50
     assert len(stats.downloads) == 50
     assert len(stats.errors) == 50
+
+
+def test_summary_cancelled_run_no_downloads():
+    stats = InstallationStats()
+    stats.start()
+    stats.total_dlc = 3
+    stats.record_error("EP01", "Cancelled")
+    stats.record_error("EP02", "All download attempts failed")
+    stats.finish()
+    summary = stats.get_summary()
+    assert summary["total_dlc"] == 3
+    assert summary["successful"] == 0
+    assert summary["failed"] == 3
+
+
+def test_summary_failed_is_per_dlc_not_per_attempt():
+    stats = InstallationStats()
+    stats.start()
+    stats.total_dlc = 3
+    stats.record_download("EP01", 10 * 1024 * 1024, 2)
+    stats.record_error("EP02", "All download attempts failed")
+    stats.record_error("EP02", "aria2c not found")
+    stats.record_error("EP02", "Part 5 failed: Cancelled")
+    stats.record_download("EP03", 20 * 1024 * 1024, 5)
+    stats.record_error("EP03", "checksum mismatch on second mirror")
+    stats.finish()
+    summary = stats.get_summary()
+    assert summary["total_dlc"] == 3
+    assert summary["successful"] == 2
+    assert summary["failed"] == 1
+    assert summary["successful"] + summary["failed"] == summary["total_dlc"]
 
 
 def test_checksums_getters_and_get():

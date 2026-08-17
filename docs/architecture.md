@@ -115,7 +115,7 @@ All dialogs share a dark theme via inline Qt stylesheets.
 | `ParallelInstallManager` | Genuinely parallel: a `ThreadPoolExecutor` (sized by `Settings.max_threads`) with one future per DLC; seeds all selected DLC at 0 and computes overall progress as the average over the total selected count |
 | `InstallWorker` | QThread-backed driver; submits one unit of work per DLC to the parallel manager, drains futures with `as_completed`, and emits per-DLC results and aggregated stats; exposes `pause()`/`resume()`/`cancel()`. Its logger is a `SignalLogger` bound to the `log_updated` signal, so every worker-thread log line (including download lifecycle lines from the downloaders/installers) is relayed to the app-log widget on the main thread |
 | `UninstallWorker` | Deletes selected DLC folders off the UI thread |
-| `InstallationStats` | Records per-DLC size, duration, and errors; produces a final summary |
+| `InstallationStats` | Records per-DLC size, duration, and errors; produces a final summary whose counts are per DLC: `Total` = the number of DLCs the user selected, `Success` = distinct DLCs actually installed, `Failed` = `Total - Success` |
 
 Each selected DLC is submitted as its own future to `ParallelInstallManager` and installs concurrently (up to `max_threads`); all selected DLC are seeded at 0, and overall progress is the average across the full selection. Per DLC:
 

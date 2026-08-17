@@ -51,6 +51,7 @@ class InstallWorker(QObject):
         self.downloader = SmartDownloader(self.logger)
         self.extractor = Extractor(self.logger)
         self.stats = InstallationStats()
+        self.stats.total_dlc = len(self.dlc_ids)
         self.download_progress = {}
         self._paused = False
         self._completed_ids = []
