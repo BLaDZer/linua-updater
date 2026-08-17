@@ -5,7 +5,7 @@ import types
 import pytest
 
 import linua_updater.core.clients as clients_mod
-from linua_updater.constants import MB
+from linua_updater.constants import MB, GB
 from linua_updater.core.clients import (
     Aria2TorrentClient,
     _popen_kwargs,
@@ -103,7 +103,6 @@ def test_start_builds_command_with_aria2_flags(tmp_path, monkeypatch):
         clients_mod.ARIA2_FLAG_CONTINUE,
         clients_mod.ARIA2_FLAG_ALLOW_OVERWRITE,
         clients_mod.ARIA2_FLAG_FILE_ALLOCATION,
-        clients_mod.ARIA2_FLAG_SUMMARY_INTERVAL,
         clients_mod.ARIA2_FLAG_CHECK_INTEGRITY,
     ):
         assert flag in cmd
@@ -163,7 +162,7 @@ def test_read_progress_returns_parsed_ticks_and_skips_lines(tmp_path, monkeypatc
     tick1 = client.read_progress()
     assert tick1[0] == 10.0
     assert tick1[1] == pytest.approx(10 * MB)
-    assert tick1[2] == 0
+    assert tick1[2] == pytest.approx(100 * MB)
 
     tick2 = client.read_progress()
     assert tick2[0] == 100.0
@@ -192,11 +191,11 @@ def test_read_progress_missing_stdout_raises(tmp_path, monkeypatch):
 
 
 def test_parse_summary():
-    line = "[#hash123 12.3MiB/123.4MiB(10%) CN:2 DL:1.2MiB]"
+    line = "[#a78768 781MiB/7.5GiB(10%) CN:28 SD:2 DL:1.7MiB ETA:1h7m42s]"
     progress, downloaded, total = Aria2TorrentClient._parse_summary(line)
     assert progress == 10.0
-    assert downloaded == pytest.approx(12.3 * MB)
-    assert total == 0
+    assert downloaded == pytest.approx(781 * MB)
+    assert total == pytest.approx(7.5 * GB)
 
 
 def test_parse_summary_100_percent():

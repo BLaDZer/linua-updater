@@ -19,7 +19,6 @@ ARIA2_FLAG_BT_STOP_TIMEOUT = "--bt-stop-timeout="
 ARIA2_FLAG_CONTINUE = "--continue=true"
 ARIA2_FLAG_ALLOW_OVERWRITE = "--allow-overwrite=true"
 ARIA2_FLAG_FILE_ALLOCATION = "--file-allocation=none"
-ARIA2_FLAG_SUMMARY_INTERVAL = "--summary-interval=1"
 ARIA2_FLAG_CHECK_INTEGRITY = "--check-integrity=true"
 
 
@@ -192,7 +191,6 @@ class Aria2TorrentClient(TorrentClient):
             ARIA2_FLAG_CONTINUE,
             ARIA2_FLAG_ALLOW_OVERWRITE,
             ARIA2_FLAG_FILE_ALLOCATION,
-            ARIA2_FLAG_SUMMARY_INTERVAL,
             ARIA2_FLAG_CHECK_INTEGRITY,
         ]
         return cmd
@@ -224,7 +222,8 @@ class Aria2TorrentClient(TorrentClient):
             return None, 0, 0
         progress = float(m.group(4))
         downloaded = Aria2TorrentClient._parse_size(m.group(2))
-        return progress, downloaded, 0
+        total = Aria2TorrentClient._parse_size(m.group(3))
+        return progress, downloaded, total
 
     def start(self, magnet: str, out_dir: str) -> None:
         os.makedirs(out_dir, exist_ok=True)

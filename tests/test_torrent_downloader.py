@@ -184,7 +184,7 @@ def test_missing_aria2_logs_warning(tmp_path):
     ok, result = dl.download("magnet:?xt=foo", out_dir)
     assert ok is False
     assert any(
-        "aria2c not found" in t.lower()
+        "no available torrent client found" in t.lower()
         for t, lv in dl.logger.records
         if lv == "WARNING"
     )
@@ -358,9 +358,9 @@ def test_stub_client_missing_aria2(tmp_path):
     dl = TorrentDownloader(RecordingLogger(), client, cleanup=True)
     ok, result = dl.download("magnet:?xt=foo", str(tmp_path / "out"))
     assert ok is False
-    assert "aria2c not found" in result
+    assert "no available torrent client found" in result
     assert any(
-        "aria2c not found" in t.lower()
+        "no available torrent client found" in t.lower()
         for t, lv in dl.logger.records
         if lv == "WARNING"
     )
