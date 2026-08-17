@@ -100,7 +100,12 @@
     },
     "EP08": {
       "name": "Discover University",
-      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP08.zip"
+      "url": "https://raw.githubusercontent.com/BLaDZer/linua-updater/refs/heads/main/EP01.zip",
+      "checksum": {
+        "sha256": "6ca5aae51994b388c0c1754b35a796b0aa2a70134d7d19cff3ad2d7c5e39f76a",
+        "sha1": "cdd5c4ebe754780e7bdf9bbadac040744d933b92",
+        "md5": "a6a32c44748cb864f95395060f02373a"
+      }
     },
     "EP09": {
       "name": "Eco Lifestyle",
