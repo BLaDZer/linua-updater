@@ -42,7 +42,7 @@ def get_installer_type(source: Optional[DownloadSource]) -> str:
 
 
 class InstallWorker(QObject):
-    progress_updated = pyqtSignal(str, float, int, int)
+    progress_updated = pyqtSignal(str, float, "long long", "long long")
     overall_progress_updated = pyqtSignal(float)
     started = pyqtSignal()
     finished = pyqtSignal()

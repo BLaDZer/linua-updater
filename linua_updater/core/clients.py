@@ -143,7 +143,7 @@ class TorrentClient(ABC):
         """Begin a download; raise on failure."""
 
     @abstractmethod
-    def read_progress(self) -> Optional[Tuple[float, float, float]]:
+    def read_progress(self) -> Optional[Tuple[float, int, int]]:
         """Return the next progress tick ``(pct, downloaded, total)`` or ``None`` on stream end."""
 
     @abstractmethod
@@ -196,7 +196,7 @@ class Aria2TorrentClient(TorrentClient):
         return cmd
 
     @staticmethod
-    def _parse_size(s: str) -> float:
+    def _parse_size_as_bytes(s: str) -> int:
         s = s.strip()
         multipliers = {
             "KiB": KB,
@@ -204,30 +204,34 @@ class Aria2TorrentClient(TorrentClient):
             "GiB": GB,
             "B": 1,
         }
+
         for unit, mult in multipliers.items():
             if s.endswith(unit):
                 try:
-                    return float(s[: -len(unit)].strip()) * mult
+                    return int(float(s[: -len(unit)].strip()) * mult)
                 except ValueError:
                     return 0
         try:
-            return float(s)
+            return int(s)
         except ValueError:
             return 0
 
     @staticmethod
-    def _parse_summary(line: str) -> Tuple[Optional[float], float, float]:
+    def _parse_stdout_line(line: str) -> Tuple[Optional[float], int, int]:
         m = re.search(r"\[(\S+?)\s+(\S+?)/(\S+?)\((\d+)%\)", line)
+
         if not m:
             return None, 0, 0
+
         progress = float(m.group(4))
-        downloaded = Aria2TorrentClient._parse_size(m.group(2))
-        total = Aria2TorrentClient._parse_size(m.group(3))
+        downloaded = Aria2TorrentClient._parse_size_as_bytes(m.group(2))
+        total = Aria2TorrentClient._parse_size_as_bytes(m.group(3))
         return progress, downloaded, total
 
     def start(self, magnet: str, out_dir: str) -> None:
         os.makedirs(out_dir, exist_ok=True)
         cmd = self._build_command(magnet, out_dir)
+
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -244,16 +248,20 @@ class Aria2TorrentClient(TorrentClient):
             self._command = cmd
             self._out_dir = out_dir
 
-    def read_progress(self) -> Optional[Tuple[float, float, float]]:
+    def read_progress(self) -> Optional[Tuple[float, int, int]]:
         with self._lock:
             proc = self._process
         if proc is None or proc.stdout is None:
             raise RuntimeError("aria2c did not provide stdout")
+
         while True:
             line = proc.stdout.readline()
+
             if not line:
                 return None
-            parsed = self._parse_summary(line)
+
+            parsed = self._parse_stdout_line(line)
+
             if parsed[0] is not None:
                 return parsed[0], parsed[1], parsed[2]
 

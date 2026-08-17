@@ -595,7 +595,7 @@ class LinuaUI(QMainWindow):
     def _on_worker_log(self, text: str, level: str = "INFO") -> None:
         self.logger.log(text, level)
 
-    @pyqtSlot(str, float, int, int)
+    @pyqtSlot(str, float, "long long", "long long")
     def on_progress_updated(self, dlc_id: str, progress: float, downloaded: int, total: int) -> None:
         if total > 0:
             self.download_detail.update_progress(dlc_id, progress, downloaded, total)

@@ -30,9 +30,9 @@ class TorrentDownloader:
         self._active = False
         self._display: Optional[str] = None
         self._source: Optional[str] = None
-        self._progress_callback: Optional[Callable[[float, float, float], None]] = None
+        self._progress_callback: Optional[Callable[[float, int, int], None]] = None
 
-    def set_progress_callback(self, callback: Optional[Callable[[float, float, float], None]]) -> None:
+    def set_progress_callback(self, callback: Optional[Callable[[float, int, int], None]]) -> None:
         self._progress_callback = callback
 
     def cancel(self) -> None:
@@ -42,6 +42,7 @@ class TorrentDownloader:
     def pause(self) -> None:
         self._paused = True
         self._client.stop()
+
         if self._active:
             self.logger.log(f"Paused torrent download: {self._display}", "WARNING")
 
@@ -67,18 +68,22 @@ class TorrentDownloader:
         self._source = magnet
         display = self._display
         self.logger.log(f"Starting torrent download: {display} ({self._source})")
+
         if not self._client.is_available():
             self._active = False
             self.logger.log("Torrent download: no available torrent client found. Torrent downloads will be skipped", "WARNING")
 
             return False, "no available torrent client found"
 
+        if self._progress_callback:
+            self._progress_callback(0,  0, 0)
+
         try:
             if self._cancelled:  # cancel() beat download() to the start → no download
                 return False, RESULT_CANCELLED
             self._cancelled = False
-            total_bytes: float = 0
-            last_progress: float = 0
+            last_progress: Optional[float] = None
+            last_downloaded: Optional[int] = None
 
             while True:  # outer restart loop — pause terminates, resume restarts
                 if self._cancelled:  # never re-launch after a cancel (also after resume/pause)
@@ -95,21 +100,26 @@ class TorrentDownloader:
                             tick = self._client.read_progress()
                         except Exception as e:
                             return False, str(e)
+
                         if tick is None:  # stream end → exit this inner loop
                             break
+
                         if self._cancelled:
                             self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                             return False, RESULT_CANCELLED
+
                         if self._paused:
                             restart = True  # halt; restart below once resumed
                             break
+
                         progress, downloaded, total = tick
                         if total == 0 and expected_size:
                             total = expected_size
-                        total_bytes = max(total_bytes, downloaded)
-                        if progress != last_progress and self._progress_callback:
+
+                        if (progress != last_progress or last_downloaded != downloaded) and self._progress_callback:
                             self._progress_callback(progress, downloaded, total)
                             last_progress = progress
+                            last_downloaded = downloaded
                 except Exception:
                     pass
 
@@ -119,6 +129,7 @@ class TorrentDownloader:
                     if self._cancelled:
                         self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                         return False, RESULT_CANCELLED
+
                     self._client.wait_exit()  # reap the terminated child
                     continue  # re-run the command; --continue=true resumes from .aria2
 
@@ -126,16 +137,19 @@ class TorrentDownloader:
                 if self._cancelled:
                     self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                     return False, RESULT_CANCELLED
+
                 if self._paused:
                     # read_progress hit EOF because pause() terminated the process → wait, then restart
                     self._wait_for_resume()
+
                     if self._cancelled:
                         self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                         return False, RESULT_CANCELLED
                     continue
+
                 if exit_code != 0:
-                    self.logger.log(f"aria2c exit code {exit_code}", "ERROR")
-                    return False, f"aria2c exit code {exit_code}"
+                    self.logger.log(f"{self._client.name} exit code {exit_code}", "ERROR")
+                    return False, f"{self._client.name} exit code {exit_code}"
                 break  # completed normally
 
             completed_files = []

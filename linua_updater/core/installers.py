@@ -297,10 +297,7 @@ class TorrentInstaller:
             expected_size = self.info.getSize()
 
             if self._progress_callback:
-                callback = self._progress_callback
-                self.dl.set_progress_callback(
-                    lambda progress, downloaded, total: callback(progress, downloaded, total)
-                )
+                self.dl.set_progress_callback(self._progress_callback)
 
             ok, result = self.dl.download(magnet, temp, dlc_name=dlc_name, expected_size=expected_size)
             if not ok:

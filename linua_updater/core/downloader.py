@@ -54,11 +54,11 @@ class SmartDownloader:
         self._display: Optional[str] = None
         self._source: Optional[str] = None
         self._pause_cond = threading.Condition()
-        self._progress_callback: Optional[Callable[[float, float, float], None]] = None
+        self._progress_callback: Optional[Callable[[float, int, int], None]] = None
         self.min_speed_threshold = MIN_SPEED_THRESHOLD  # 50 KB/s minimum speed
         self.speed_check_duration = SPEED_CHECK_DURATION_SEC  # Check speed after 10 seconds
 
-    def set_progress_callback(self, callback: Optional[Callable[[float, float, float], None]]) -> None:
+    def set_progress_callback(self, callback: Optional[Callable[[float, int, int], None]]) -> None:
         self._progress_callback = callback
 
     def set_proxy(self, proxy_dict: Optional[Dict[str, str]]) -> None:
@@ -128,8 +128,10 @@ class SmartDownloader:
                 if self._cancelled:
                     self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
                     return False, RESULT_CANCELLED
+
                 self.set_proxy(proxy)
                 success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
+
                 if success:
                     self._log_downloaded(out_path)
                     self._active = False
@@ -146,8 +148,10 @@ class SmartDownloader:
                     self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
                     return False, RESULT_CANCELLED
                 mirror_url = url.replace(domain, mirror)
+
                 self.set_proxy(None)
                 success, msg = self._try_download_with_retry(mirror_url, out_path, temp_path, downloaded, expected_size)
+
                 if success:
                     self._log_downloaded(out_path)
                     self._active = False
@@ -169,13 +173,16 @@ class SmartDownloader:
         for attempt in range(max_retries):
             if self._cancelled:
                 return False, RESULT_CANCELLED
+
             try:
                 if attempt > 0:
                     delay = min(2**attempt, MAX_RETRY_BACKOFF_SEC)
                     time.sleep(delay)
                 success, msg = self._try_download(url, out_path, temp_path, start_byte, expected_size)
+
                 if success:
                     return True, RESULT_OK
+
                 if "corrupted" in msg.lower() or "invalid" in msg.lower():
                     if os.path.exists(temp_path):
                         os.remove(temp_path)
@@ -217,12 +224,15 @@ class SmartDownloader:
                     for chunk in response.iter_content(chunk_size=DOWNLOAD_CHUNK_SIZE):
                         if self._cancelled:
                             return False, RESULT_CANCELLED
+
                         if self._paused:
                             with self._pause_cond:
                                 while self._paused and not self._cancelled:
                                     self._pause_cond.wait(timeout=PAUSE_WAIT_TIMEOUT_SEC)
+
                         if self._cancelled:
                             return False, RESULT_CANCELLED  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
+
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
@@ -256,10 +266,13 @@ class SmartDownloader:
                     # Only check size if we have Content-Length from server
                     if int(response.headers.get("content-length", 0)) > 0 and actual_size != total_size:
                         return False, f"Size mismatch: expected {total_size}, got {actual_size}"
+
                 if os.path.exists(temp_path):
                     shutil.move(temp_path, out_path)
+
                 if total_size > 0 and self._progress_callback:
                     self._progress_callback(PERCENT_MAX, downloaded, total_size)
+
                 return True, RESULT_OK
         except requests.exceptions.Timeout:
             return False, "Timeout"

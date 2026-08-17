@@ -190,17 +190,29 @@ def test_read_progress_missing_stdout_raises(tmp_path, monkeypatch):
         client.read_progress()
 
 
-def test_parse_summary():
+def test_parse_stdout_line():
     line = "[#a78768 781MiB/7.5GiB(10%) CN:28 SD:2 DL:1.7MiB ETA:1h7m42s]"
-    progress, downloaded, total = Aria2TorrentClient._parse_summary(line)
+
+    progress, downloaded, total = Aria2TorrentClient._parse_stdout_line(line)
     assert progress == 10.0
-    assert downloaded == pytest.approx(781 * MB)
-    assert total == pytest.approx(7.5 * GB)
+    assert downloaded == 781 * MB
+    assert total == 7.5 * GB
 
 
-def test_parse_summary_100_percent():
+def test_parse_size_as_bytes():
+    line = "78MiB"
+    result = Aria2TorrentClient._parse_size_as_bytes(line)
+    assert result == 78 * MB
+
+    line = "7.5GiB"
+    result = Aria2TorrentClient._parse_size_as_bytes(line)
+    assert result == 7.5 * GB
+
+
+def test_parse_stdout_line_100_percent():
     line = "[#hash123 100MiB/100MiB(100%) CN:2 DL:1.0MiB]"
-    progress, downloaded, total = Aria2TorrentClient._parse_summary(line)
+
+    progress, downloaded, total = Aria2TorrentClient._parse_stdout_line(line)
     assert progress == 100.0
     assert downloaded == pytest.approx(100 * MB)
 

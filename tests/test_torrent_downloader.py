@@ -199,7 +199,7 @@ def test_nonzero_exit_logs_error(tmp_path, monkeypatch):
     ok, result = dl.download("magnet:?xt=foo", out_dir)
     assert ok is False
     assert any(
-        "aria2c exit code 1" in t
+        "aria2 exit code 1" in t
         for t, lv in dl.logger.records
         if lv == "ERROR"
     )
@@ -373,6 +373,7 @@ def test_stub_client_progress_dedupe(tmp_path):
         (10.0, 10 * MB, 0),
         (10.0, 20 * MB, 0),
         (50.0, 50 * MB, 0),
+        (50.0, 50 * MB, 0),
         (100.0, 100 * MB, 0),
     ]
     events = []
@@ -382,7 +383,7 @@ def test_stub_client_progress_dedupe(tmp_path):
     ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * MB)
     assert ok is True
     assert isinstance(result, list)
-    assert events == [10.0, 50.0, 100.0]  # repeated 10% was deduped
+    assert events == [0, 10.0, 10.0, 50.0, 100.0]  # repeated 50% was deduped
 
 
 def test_stub_client_restart_loop(tmp_path):
