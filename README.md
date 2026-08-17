@@ -336,6 +336,13 @@ pip install ruff
 ruff check linua_updater/
 ```
 
+### **Type checking**
+
+```bash
+pip install mypy types-requests PyQt6-stubs
+mypy linua_updater/
+```
+
 ### **Building executable**
 
 ```bash
@@ -346,11 +353,11 @@ pyinstaller --noconfirm build.spec
 
 ### **Dependencies**
 
-* Python >= 3.8
+* Python >= 3.10
 * PyQt6 >= 6.4.0
 * requests >= 2.28.0
 * `aria2c` and 7-Zip — bundled automatically (no separate installation needed)
-* Dev only (optional): pytest, ruff, pyinstaller — `pip install -e ".[dev]"`
+* Dev only (optional): pytest, ruff, mypy, pyinstaller — `pip install -e ".[dev]"`
 
 ---
 
@@ -358,7 +365,7 @@ pyinstaller --noconfirm build.spec
 
 * **Platforms:** Windows 10/11 (64-bit), Linux (x64)
 * **Architecture:** x64
-* **Language:** Python 3.8+
+* **Language:** Python 3.10+
 * **GUI Framework:** PyQt6
 * **Bundled binaries:** aria2c (for torrent downloads), 7-Zip (for multipart/`.001` extraction)
 * **No external dependencies** for packaged version

@@ -6,14 +6,14 @@
 # Setup venv + dev deps
 ./scripts/setup.sh
 
-# Run tests then lint
+# Run tests, lint and type checks
 ./scripts/check.sh
 ```
 
 ## Tech Stack
 
 - Language: Python
-- Python Version: 3.8+
+- Python Version: 3.10+
 
 ## Architecture at a glance
 
@@ -37,6 +37,8 @@
 - **CI triggers on `v*.*.*` tags.** Two workflows: `ubuntu-latest` → `dist/Linua-Updater`, `windows-latest` → `dist/Linua-Updater.exe`.
 - **Ruff ignores many rules.** `pyproject.toml` has a long `extend-ignore` list (E501, E402, E722, BLE001, S110, S112, F841, etc.) — do not add `ruff` lint errors to PRs without checking if they are in the intentional ignore list.
 - **`line-length = 160`** in ruff config.
+- **MyPy type checks run via `scripts/check.sh`/`check.bat`.** Config lives in `[tool.mypy]` in `pyproject.toml` (`check_untyped_defs = true`, so untyped function bodies are still checked). `disallow_untyped_defs` is intentionally off — the codebase is still being migrated; add type annotations as you touch files. New generic annotations MUST specify type args (e.g. `List[str]`, not bare `List`) because `disallow_any_generics` is enabled.
+- **Editor tip:** progress callbacks are typed as `Callable[[float, float, float], None]` — use that signature when delegating to installers/downloaders.
 - **Single-instance lock** uses a TCP port on `127.0.0.1`.
 - **Data dir resolution:** Windows → `%LOCALAPPDATA%\LinuaUpdater`, macOS → `~/Library/Application Support/LinuaUpdater`, Linux → `$XDG_DATA_HOME/linua-updater` (default `~/.local/share/linua-updater`).
 

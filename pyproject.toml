@@ -3,7 +3,7 @@ name = "linua-updater"
 version = "5.0.0"
 description = "Installs, verifies and removes DLC content for The Sims 4."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
     "requests",

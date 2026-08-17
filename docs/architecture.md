@@ -9,13 +9,13 @@
 
 Linua Updater is a lightweight cross-platform desktop application that installs, verifies, and removes DLC content for *The Sims 4*. It is a Python desktop application using PyQt6 for the GUI and the `requests` library for networking, organized as a modular package (see Module layout). Windows remains the primary target; Linux/macOS are supported where noted.
 
-| Aspect | Detail |
-| --- | --- |
-| Language | Python 3.8+ |
-| GUI framework | PyQt6 |
-| Networking | `requests` (with `urllib3` TLS warnings disabled) |
-| Distribution | Single executable via PyInstaller |
-| Target platform | Cross-platform: Windows 10/11 (64-bit) primary; Linux/macOS supported |
+| Aspect | Detail                                                                             |
+| --- |------------------------------------------------------------------------------------|
+| Language | Python 3.10+                                                                       |
+| GUI framework | PyQt6                                                                              |
+| Networking | `requests` (with `urllib3` TLS warnings disabled)                                  |
+| Distribution | Single executable via PyInstaller                                                  |
+| Target platform | Cross-platform: Windows 10/11 (64-bit) primary; Linux/macOS supported              |
 | Entry point | `linua_updater/__main__.py` (run as `python -m linua_updater` or via `build.spec`) |
 
 The codebase is a flat-layout PyPI-style package (`pyproject.toml`, entry point in `__main__.py`). Concerns are separated by the layers below into modules under `linua_updater/`; see `docs/refactoring-plan.md` for the full class → module map.
