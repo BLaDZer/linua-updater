@@ -124,6 +124,12 @@ def test_size_enrichment_applied_to_cached_data(cache_file):
     assert db.all()["EP01"].getSize() == 1900000000
 
 
+def test_provided_size_not_overwritten(cache_file):
+    _write_cache(cache_file, {"dlc": {"EP01": {"name": "Get to Work", "url": "x", "size": 12345}}})
+    db = DLCDatabase()
+    assert db.all()["EP01"].getSize() == 12345
+
+
 def test_expired_cache_triggers_download(cache_file, monkeypatch):
     _write_cache(cache_file, {"dlc": {"EP01": {"name": "old", "url": "x"}}}, timestamp=time.time() - 7200)
     calls = []

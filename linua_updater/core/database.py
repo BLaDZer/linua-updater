@@ -52,7 +52,7 @@ class DLCDatabase:
 
     def _apply_sizes(self) -> None:
         for dlc_id, info in self.dlc.items():
-            if dlc_id in SIZE_ESTIMATES:
+            if dlc_id in SIZE_ESTIMATES and not info.get("size"):
                 info["size"] = SIZE_ESTIMATES[dlc_id]
 
     def _build_infos(self) -> None:
