@@ -14,6 +14,7 @@ class SimpleProgressBar(QProgressBar):
             super().setValue(value)
             self.setFormat(f"{value}%")
 
+
 class SimpleDetailWidget(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)

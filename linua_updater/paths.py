@@ -59,10 +59,10 @@ class AppPaths:
     LOG_FILE = LOG_DIR / "updater.log"
 
     # Cache lifetimes (seconds).
-    UPDATE_CACHE_DURATION = 129600      # 36 hours
-    DIAG_CACHE_DURATION = 10800         # 3 hours
-    DOWNLOAD_STATE_DURATION = 86400     # 24 hours
-    DATABASE_CACHE_DURATION = 86400     # 24 hours
+    UPDATE_CACHE_DURATION = 129600  # 36 hours
+    DIAG_CACHE_DURATION = 10800  # 3 hours
+    DOWNLOAD_STATE_DURATION = 86400  # 24 hours
+    DATABASE_CACHE_DURATION = 86400  # 24 hours
 
     @classmethod
     def ensure(cls) -> None:

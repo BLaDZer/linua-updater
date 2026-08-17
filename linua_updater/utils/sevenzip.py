@@ -60,12 +60,14 @@ class SevenZipFinder:
                 return path
 
         # 4. Check PATH environment variable manually
-        path_env = os.environ.get('PATH', '')
+        path_env = os.environ.get("PATH", "")
         for path_dir in path_env.split(os.pathsep):
             for exe_name in self._executable_names():
                 candidate = os.path.join(path_dir, exe_name)
                 if os.path.exists(candidate):
                     return candidate
 
-        self.logger.log("7-Zip not found. Install 7-Zip from https://www.7-zip.org/ and make sure the binary is on PATH", "WARNING")
+        self.logger.log(
+            "7-Zip not found. Install 7-Zip from https://www.7-zip.org/ and make sure the binary is on PATH", "WARNING"
+        )
         return None

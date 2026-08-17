@@ -6,17 +6,21 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 class UninstallWorker(QObject):
     """Worker thread for uninstalling DLC"""
+
     progress_updated = pyqtSignal(int, int)  # current, total
     dlc_removed = pyqtSignal(str, bool, str)  # dlc_id, success, message
     finished = pyqtSignal()
+
     def __init__(self, dlc_ids, game_path, logger):
         super().__init__()
         self.dlc_ids = dlc_ids
         self.game_path = game_path
         self.logger = logger
         self._cancelled = False
+
     def cancel(self):
         self._cancelled = True
+
     def run(self):
         """Uninstall selected DLC"""
         total = len(self.dlc_ids)
@@ -27,6 +31,7 @@ class UninstallWorker(QObject):
             success, message = self.uninstall_dlc(dlc_id)
             self.dlc_removed.emit(dlc_id, success, message)
         self.finished.emit()
+
     def uninstall_dlc(self, dlc_id):
         """Uninstall a single DLC by deleting its folder"""
         try:

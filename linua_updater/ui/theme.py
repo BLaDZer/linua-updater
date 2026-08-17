@@ -19,4 +19,5 @@ def apply_dark_palette(app):
     palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
     app.setPalette(palette)
 
+
 MAIN_STYLESHEET = "QMainWindow,QDialog{background-color:#1e1e1e;color:white;}QPushButton{background-color:#333;border:1px solid #555;padding:8px;font-weight:bold;color:white;border-radius:4px;}QPushButton:hover{background-color:#444;}QPushButton:pressed{background-color:#222;}QPushButton:disabled{background-color:#222;color:#666;border:1px solid #333;}QLineEdit{background-color:#0a0a0a;color:white;border:1px solid #444;padding:6px;border-radius:4px;}"

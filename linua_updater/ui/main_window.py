@@ -172,12 +172,12 @@ class LinuaUI(QMainWindow):
     def check_for_updates(self):
         """Check for updates on startup"""
         self.logger.log("Checking for updates...")
-        self.update_checker = UpdateChecker(None, version_url=self.network['version_check_url'])  # logger=None: worker logs via signals
+        self.update_checker = UpdateChecker(
+            None, version_url=self.network["version_check_url"]
+        )  # logger=None: worker logs via signals
         self.update_checker.update_available.connect(self.on_update_available)
         self.update_checker.no_update.connect(lambda: self.logger.log("No updates available"))
-        self.update_checker.check_failed.connect(
-            lambda err: self.logger.log(f"Update check failed: {err}", "WARNING")
-        )
+        self.update_checker.check_failed.connect(lambda err: self.logger.log(f"Update check failed: {err}", "WARNING"))
         self._update_thread = QThread()
         self.update_checker.moveToThread(self._update_thread)
         self._update_thread.started.connect(self.update_checker.check_for_updates)
@@ -192,10 +192,11 @@ class LinuaUI(QMainWindow):
             "Update Available",
             f"New version {version} is available!\n\nDo you want to download it?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes
+            QMessageBox.StandardButton.Yes,
         )
         if reply == QMessageBox.StandardButton.Yes:
             import webbrowser
+
             webbrowser.open(url)
 
     def setup_ui(self):
@@ -204,7 +205,9 @@ class LinuaUI(QMainWindow):
         layout = QVBoxLayout(central)
         layout.setSpacing(8)
         title = QLabel(f"Linua Updater v{APP_VERSION}")
-        title.setStyleSheet("QLabel{font-weight:bold;font-size:14px;padding:8px;color:#0078d7;background:#2a2a2a;border-radius:6px;text-align:center;}")
+        title.setStyleSheet(
+            "QLabel{font-weight:bold;font-size:14px;padding:8px;color:#0078d7;background:#2a2a2a;border-radius:6px;text-align:center;}"
+        )
         layout.addWidget(title)
         path_label = QLabel("The Sims 4 folder:")
         path_label.setStyleSheet("color:white;font-weight:bold;")
@@ -222,12 +225,16 @@ class LinuaUI(QMainWindow):
         row.addWidget(auto, 1)
         layout.addLayout(row)
         self.dlc_status = QLabel("Select game folder")
-        self.dlc_status.setStyleSheet("QLabel{color:#00ff00;background:#2a2a2a;padding:6px;border-radius:4px;font-size:11px;text-align:center;margin:2px 0;}")
+        self.dlc_status.setStyleSheet(
+            "QLabel{color:#00ff00;background:#2a2a2a;padding:6px;border-radius:4px;font-size:11px;text-align:center;margin:2px 0;}"
+        )
         self.dlc_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.dlc_status)
         self.download_progress = SimpleProgressBar()
         self.download_progress.setVisible(False)
-        self.download_progress.setStyleSheet(f"QProgressBar{{background-color:#1a1a1a;border:2px solid #333;border-radius:6px;text-align:center;color:white;height:30px;font-weight:bold;font-size:14px;font-family:{_ui_font_family()};}}QProgressBar::chunk{{background-color:#00aa00;border-radius:4px;border:1px solid #008800;}}")
+        self.download_progress.setStyleSheet(
+            f"QProgressBar{{background-color:#1a1a1a;border:2px solid #333;border-radius:6px;text-align:center;color:white;height:30px;font-weight:bold;font-size:14px;font-family:{_ui_font_family()};}}QProgressBar::chunk{{background-color:#00aa00;border-radius:4px;border:1px solid #008800;}}"
+        )
         layout.addWidget(self.download_progress)
         self.download_detail = SimpleDetailWidget()
         layout.addWidget(self.download_detail)
@@ -263,7 +270,9 @@ class LinuaUI(QMainWindow):
         except Exception:
             f = QFont("monospace", 9)
         self.log_text.setFont(f)
-        self.log_text.setStyleSheet("QTextEdit{background-color:#0a0a0a;color:#00ff00;border:1px solid #444;border-radius:4px;padding:5px;}")
+        self.log_text.setStyleSheet(
+            "QTextEdit{background-color:#0a0a0a;color:#00ff00;border:1px solid #444;border-radius:4px;padding:5px;}"
+        )
         layout.addWidget(self.log_text, 1)
         info = QLabel(
             "Enjoying Linua Updater? Support the project!<br>"
@@ -273,8 +282,10 @@ class LinuaUI(QMainWindow):
         info.setOpenExternalLinks(True)
         info.setWordWrap(True)
         info.setTextFormat(Qt.TextFormat.RichText)
-        info.setStyleSheet("QLabel{background-color:#2a2a2a;padding:10px;border-radius:6px;"
-                   "color:#ffd700;font-size:11px;border-left:4px solid #ffd700;}")
+        info.setStyleSheet(
+            "QLabel{background-color:#2a2a2a;padding:10px;border-radius:6px;"
+            "color:#ffd700;font-size:11px;border-left:4px solid #ffd700;}"
+        )
         layout.addWidget(info)
 
     def apply_dark_theme(self):
@@ -339,16 +350,20 @@ class LinuaUI(QMainWindow):
 
         try:
             if cache_file.exists():
-                with open(cache_file, 'r') as f:
+                with open(cache_file, "r") as f:
                     cache = json.load(f)
-                if time.time() - cache.get('timestamp', 0) < cache_duration:
-                    tool = NetworkDiagnostics(self.logger, region_api=self.network['region_api'], proxy_ports=self.network['proxy_ports'])
-                    tool.can_reach_github = cache.get('can_reach_github', True)
-                    tool.proxy_needed = cache.get('proxy_needed', False)
-                    tool.recommended_solution = cache.get('recommended_solution', 'direct')
-                    self.logger.log(f"Network: cached diagnostics ({int((time.time() - cache['timestamp']) / 60)} min old)", "DEBUG")
+                if time.time() - cache.get("timestamp", 0) < cache_duration:
+                    tool = NetworkDiagnostics(
+                        self.logger, region_api=self.network["region_api"], proxy_ports=self.network["proxy_ports"]
+                    )
+                    tool.can_reach_github = cache.get("can_reach_github", True)
+                    tool.proxy_needed = cache.get("proxy_needed", False)
+                    tool.recommended_solution = cache.get("recommended_solution", "direct")
+                    self.logger.log(
+                        f"Network: cached diagnostics ({int((time.time() - cache['timestamp']) / 60)} min old)", "DEBUG"
+                    )
                     self.diagnostics = tool
-                    self.downloader = SmartDownloader(self.logger, self.diagnostics, mirrors=self.network['mirrors'])
+                    self.downloader = SmartDownloader(self.logger, self.diagnostics, mirrors=self.network["mirrors"])
                     return
         except:
             pass
@@ -363,17 +378,20 @@ class LinuaUI(QMainWindow):
 
     def _apply_diagnostics(self, tool):
         self.diagnostics = tool
-        self.downloader = SmartDownloader(self.logger, self.diagnostics, mirrors=self.network['mirrors'])
+        self.downloader = SmartDownloader(self.logger, self.diagnostics, mirrors=self.network["mirrors"])
         cache_file = AppPaths.DIAG_CACHE_FILE
         try:
             AppPaths.ensure()
-            with open(cache_file, 'w') as f:
-                json.dump({
-                    'timestamp': time.time(),
-                    'can_reach_github': tool.can_reach_github,
-                    'proxy_needed': tool.proxy_needed,
-                    'recommended_solution': tool.recommended_solution
-                }, f)
+            with open(cache_file, "w") as f:
+                json.dump(
+                    {
+                        "timestamp": time.time(),
+                        "can_reach_github": tool.can_reach_github,
+                        "proxy_needed": tool.proxy_needed,
+                        "recommended_solution": tool.recommended_solution,
+                    },
+                    f,
+                )
         except:
             pass
         if tool.recommended_solution == "direct":
@@ -385,10 +403,10 @@ class LinuaUI(QMainWindow):
 
     def show_settings(self):
         dlg = SettingsDialog(self, db=self.db, logger=self.logger)
-        dlg.thread_spin.setValue(self.settings.get('max_threads', 3))
-        dlg.proxy_check.setChecked(self.settings.get('use_proxy', True))
-        dlg.resume_check.setChecked(self.settings.get('resume_downloads', True))
-        dlg.cleanup_check.setChecked(self.settings.get('cleanup_temp', True))
+        dlg.thread_spin.setValue(self.settings.get("max_threads", 3))
+        dlg.proxy_check.setChecked(self.settings.get("use_proxy", True))
+        dlg.resume_check.setChecked(self.settings.get("resume_downloads", True))
+        dlg.cleanup_check.setChecked(self.settings.get("cleanup_temp", True))
         if dlg.exec() == QDialog.DialogCode.Accepted:
             new_settings = dlg.get_settings()
             self.settings.update(new_settings)
@@ -396,7 +414,9 @@ class LinuaUI(QMainWindow):
             self.logger.log("Settings saved")
 
     def browse_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select The Sims 4 Folder", _browse_default_dir(self.path_input.text()))
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select The Sims 4 Folder", _browse_default_dir(self.path_input.text())
+        )
         if folder:
             self.path_input.setText(folder)
             self._persist_valid_path(folder)
@@ -452,7 +472,11 @@ class LinuaUI(QMainWindow):
             available = [(dlc_id, info) for dlc_id, info in self.db.all().items() if dlc_id.upper() not in installed]
             if not available:
                 self.logger.log("All DLC already installed!")
-                QMessageBox.information(self, "All Installed!", "All available DLC are already installed!\n\nFor new DLC, check for application updates.")
+                QMessageBox.information(
+                    self,
+                    "All Installed!",
+                    "All available DLC are already installed!\n\nFor new DLC, check for application updates.",
+                )
                 return
         if not path:
             self.logger.log("Please select game folder", "ERROR")
@@ -465,7 +489,13 @@ class LinuaUI(QMainWindow):
         if AdminElevator.requires_admin(path):
             if not AdminElevator.is_admin():
                 self.logger.log("Administrator privileges required", "WARNING")
-                reply = QMessageBox.question(self, "Administrator Required", f"The selected path requires administrator privileges:\n\n{path}\n\nThe application needs to restart with elevated privileges.\nClick Yes to restart as administrator.", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
+                reply = QMessageBox.question(
+                    self,
+                    "Administrator Required",
+                    f"The selected path requires administrator privileges:\n\n{path}\n\nThe application needs to restart with elevated privileges.\nClick Yes to restart as administrator.",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
                 if reply == QMessageBox.StandardButton.Yes:
                     self.logger.log("Restarting with admin rights...")
                     AdminElevator.elevate()
@@ -477,7 +507,13 @@ class LinuaUI(QMainWindow):
         exe_path = os.path.join(path, "Game", "Bin", "TS4_x64.exe")
         if not os.path.exists(exe_path):
             self.logger.log("TS4_x64.exe not found", "WARNING")
-            reply = QMessageBox.question(self, "Invalid Game Folder?", "TS4_x64.exe not found in this folder.\n\nThis may not be a valid Sims 4 installation.\nContinue anyway?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            reply = QMessageBox.question(
+                self,
+                "Invalid Game Folder?",
+                "TS4_x64.exe not found in this folder.\n\nThis may not be a valid Sims 4 installation.\nContinue anyway?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
             if reply == QMessageBox.StandardButton.No:
                 return
         else:
@@ -496,13 +532,15 @@ class LinuaUI(QMainWindow):
 
         # Check disk space for selected DLC
         space_info = DiskSpaceChecker.check_space(selected, path)
-        if not space_info['enough_space']:
+        if not space_info["enough_space"]:
             space_dlg = SpaceWarningDialog(self, space_info)
             if space_dlg.exec() != QDialog.DialogCode.Accepted:
                 self.logger.log("Installation cancelled due to insufficient space")
                 return
             else:
-                self.logger.log(f"User chose to continue despite low space ({space_info['shortage_gb']:.1f} GB short)", "WARNING")
+                self.logger.log(
+                    f"User chose to continue despite low space ({space_info['shortage_gb']:.1f} GB short)", "WARNING"
+                )
 
         self.start_parallel_install(selected, path)
 
@@ -527,7 +565,7 @@ class LinuaUI(QMainWindow):
         self.cancel_btn.setEnabled(True)
         self.settings_btn.setEnabled(False)
         self.export_logs_btn.setEnabled(False)
-        self.install_worker = InstallWorker(selected, path, self.settings, mirrors=self.network['mirrors'])
+        self.install_worker = InstallWorker(selected, path, self.settings, mirrors=self.network["mirrors"])
         self.install_thread = QThread()
         self.install_worker.moveToThread(self.install_thread)
         self.install_worker.progress_updated.connect(self.on_progress_updated)
@@ -565,9 +603,14 @@ class LinuaUI(QMainWindow):
             self.logger.log(f"{dlc_id}: FAILED - {message}", "ERROR")
         remaining = self.progress_total - self.progress_done
         if self.failed_count == 0:
-            self.logger.log(f"Progress: {self.progress_done}/{self.progress_total} (Success: {self.successful_count}, Failed: {self.failed_count})")
+            self.logger.log(
+                f"Progress: {self.progress_done}/{self.progress_total} (Success: {self.successful_count}, Failed: {self.failed_count})"
+            )
         else:
-            self.logger.log(f"Progress: {self.progress_done}/{self.progress_total} (Success: {self.successful_count}, Failed: {self.failed_count})", "WARNING")
+            self.logger.log(
+                f"Progress: {self.progress_done}/{self.progress_total} (Success: {self.successful_count}, Failed: {self.failed_count})",
+                "WARNING",
+            )
 
     @pyqtSlot()
     def on_install_started(self):
@@ -581,15 +624,15 @@ class LinuaUI(QMainWindow):
         self.logger.log(f"Size: {stats['total_size_mb']:.1f} MB")
         self.logger.log(f"Time: {stats['total_duration_sec']:.1f}s")
         self.logger.log(f"Speed: {stats['avg_speed_mbps']:.2f} MB/s")
-        if stats['failed'] == 0:
+        if stats["failed"] == 0:
             self.logger.log(f"Success: {stats['successful']}, Failed: {stats['failed']}")
         else:
             self.logger.log(f"Success: {stats['successful']}", "INFO")
             self.logger.log(f"Failed: {stats['failed']}", "ERROR")
-            if stats.get('errors'):
+            if stats.get("errors"):
                 self.logger.log("", "INFO")
                 self.logger.log("=== ERROR DETAILS ===", "ERROR")
-                for err in stats['errors']:
+                for err in stats["errors"]:
                     self.logger.log(f"{err['dlc_id']}: {err['error']}", "ERROR")
                 self.logger.log("=====================", "ERROR")
         self.logger.log("==================")
@@ -691,7 +734,9 @@ class LinuaUI(QMainWindow):
         self.uninstall_thread = QThread()
         self.uninstall_worker.moveToThread(self.uninstall_thread)
 
-        self.uninstall_worker.progress_updated.connect(lambda curr, total: self.download_progress.setValue(int((curr/total)*100)))
+        self.uninstall_worker.progress_updated.connect(
+            lambda curr, total: self.download_progress.setValue(int((curr / total) * 100))
+        )
         self.uninstall_worker.dlc_removed.connect(self.on_dlc_removed)
         self.uninstall_worker.finished.connect(self.on_uninstall_finished)
 
@@ -746,11 +791,11 @@ class LinuaUI(QMainWindow):
         state = DownloadState().load_state()
         if not state:
             return
-        if not self.settings.get('resume_downloads', True):
+        if not self.settings.get("resume_downloads", True):
             DownloadState().clear_state()
             return
-        remaining = state.get('remaining') or []
-        path = state.get('game_path') or self.config.get('game_path', '')
+        remaining = state.get("remaining") or []
+        path = state.get("game_path") or self.config.get("game_path", "")
         if not path or not os.path.exists(path) or not remaining:
             DownloadState().clear_state()
             return
@@ -764,7 +809,7 @@ class LinuaUI(QMainWindow):
             "Resume Install?",
             f"Found an unfinished installation ({len(available)} DLC remaining).\n\nResume it now?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes
+            QMessageBox.StandardButton.Yes,
         )
         if reply == QMessageBox.StandardButton.Yes:
             self.path_input.setText(path)

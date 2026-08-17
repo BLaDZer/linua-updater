@@ -42,7 +42,9 @@ class SingleDLCInstaller:
             dlc_name = f"{self.dlc} - {self.info.getName()}"
             if self._progress_callback:
                 self.dl.set_progress_callback(self._progress_callback)
-            ok, reason = self.dl.download(url, temp, dlc_name, resume=self.dl.resume_enabled, expected_size=expected_size)
+            ok, reason = self.dl.download(
+                url, temp, dlc_name, resume=self.dl.resume_enabled, expected_size=expected_size
+            )
             if not ok:
                 if self.stats:
                     self.stats.record_error(self.dlc, reason)
@@ -119,32 +121,34 @@ class MultiPartInstaller:
             self.log(f"Downloading {self.dlc}: {total_parts} parts")
             for i, part in enumerate(parts):
                 url = part.getSource()
-                name = f"{self.dlc}_{threading.get_ident()}.7z.{str(i+1).zfill(3)}"
+                name = f"{self.dlc}_{threading.get_ident()}.7z.{str(i + 1).zfill(3)}"
                 out = os.path.join(tempfile.gettempdir(), name)
-                dlc_name = f"{self.dlc} Part {i+1}"
+                dlc_name = f"{self.dlc} Part {i + 1}"
                 part_weight = 100.0 / total_parts
                 current_base = i * part_weight
                 if self._progress_callback:
+
                     def part_progress(progress, downloaded, total, base=current_base, weight=part_weight):
                         total_progress = base + (progress * weight / 100)
                         self._progress_callback(total_progress, downloaded, total)
+
                     self.dl.set_progress_callback(part_progress)
                 ok, reason = self.dl.download(url, out, dlc_name, resume=self.dl.resume_enabled)
                 if not ok:
-                    self.log(f"Part {i+1}/{total_parts} failed: {reason}", "WARNING")
+                    self.log(f"Part {i + 1}/{total_parts} failed: {reason}", "WARNING")
                     for f in downloaded_files:
                         try:
                             os.remove(f)
                         except:
                             pass
                     if self.stats:
-                        self.stats.record_error(self.dlc, f"Part {i+1} failed: {reason}")
-                    return False, f"Part {i+1} failed: {reason}"
+                        self.stats.record_error(self.dlc, f"Part {i + 1} failed: {reason}")
+                    return False, f"Part {i + 1} failed: {reason}"
                 if not os.path.exists(out):
-                    return False, f"Part {i+1} not found after download"
+                    return False, f"Part {i + 1} not found after download"
                 part_size = os.path.getsize(out)
                 if part_size == 0:
-                    return False, f"Part {i+1} is empty"
+                    return False, f"Part {i + 1} is empty"
                 total_size += part_size
                 downloaded_files.append(out)
             part1 = downloaded_files[0]
@@ -203,7 +207,9 @@ class TorrentInstaller:
             dlc_name = f"{self.dlc} - {self.info.getName()}"
             expected_size = self.info.getSize()
             if self._progress_callback:
-                self.dl.set_progress_callback(lambda progress, downloaded, total: self._progress_callback(progress, downloaded, total))
+                self.dl.set_progress_callback(
+                    lambda progress, downloaded, total: self._progress_callback(progress, downloaded, total)
+                )
             ok, result = self.dl.download(magnet, temp, dlc_name=dlc_name, expected_size=expected_size)
             if not ok:
                 if self.stats:
@@ -264,6 +270,7 @@ class TorrentInstaller:
             if temp and os.path.exists(temp):
                 try:
                     import shutil
+
                     shutil.rmtree(temp)
                 except:
                     pass

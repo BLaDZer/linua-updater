@@ -19,6 +19,7 @@ class GameDetector:
             return []
         try:
             import winreg
+
             paths_to_check = []
             registry_keys = [
                 (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Maxis\The Sims 4", "Install Dir"),
@@ -84,7 +85,7 @@ class GameDetector:
             return None
         max_depth = 12
         for root, dirs, files in os.walk(compatdata):
-            depth = root[len(compatdata):].count(os.sep)
+            depth = root[len(compatdata) :].count(os.sep)
             if depth >= max_depth:
                 dirs[:] = []
                 continue

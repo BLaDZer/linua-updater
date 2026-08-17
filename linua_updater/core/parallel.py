@@ -14,7 +14,7 @@ class ParallelInstallManager:
 
     def initialize(self, dlc_ids):
         with self._lock:
-            self._download_progress = {dlc_id: {'progress': 0.0, 'downloaded': 0, 'total': 0} for dlc_id in dlc_ids}
+            self._download_progress = {dlc_id: {"progress": 0.0, "downloaded": 0, "total": 0} for dlc_id in dlc_ids}
             self.total_count = len(dlc_ids)
 
     def set_overall_progress_callback(self, callback):
@@ -22,7 +22,7 @@ class ParallelInstallManager:
 
     def update_download_progress(self, dlc_id, progress, downloaded, total):
         with self._lock:
-            self._download_progress[dlc_id] = {'progress': progress, 'downloaded': downloaded, 'total': total}
+            self._download_progress[dlc_id] = {"progress": progress, "downloaded": downloaded, "total": total}
             total_progress = self._calculate_overall_progress()
         if self._overall_progress_callback:
             self._overall_progress_callback(total_progress)
@@ -30,7 +30,7 @@ class ParallelInstallManager:
     def _calculate_overall_progress(self):
         if not self._download_progress:
             return 0
-        total_progress = sum(d['progress'] for d in self._download_progress.values())
+        total_progress = sum(d["progress"] for d in self._download_progress.values())
         count = self.total_count if self.total_count > 0 else len(self._download_progress)
         return total_progress / count if count > 0 else 0
 

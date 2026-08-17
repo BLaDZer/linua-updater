@@ -6,38 +6,42 @@ from linua_updater.paths import AppPaths
 
 class DownloadState:
     """Saves download state for pause/resume functionality"""
+
     def __init__(self):
         AppPaths.ensure()
         self.state_file = AppPaths.DOWNLOAD_STATE_FILE
+
     def save_state(self, dlc_ids, completed, failed, game_path=None):
         """Save current download state"""
         state = {
-            'timestamp': time.time(),
-            'total': dlc_ids,
-            'completed': completed,
-            'failed': failed,
-            'game_path': game_path,
-            'remaining': [dlc for dlc in dlc_ids if dlc not in completed and dlc not in failed]
+            "timestamp": time.time(),
+            "total": dlc_ids,
+            "completed": completed,
+            "failed": failed,
+            "game_path": game_path,
+            "remaining": [dlc for dlc in dlc_ids if dlc not in completed and dlc not in failed],
         }
         try:
-            with open(self.state_file, 'w') as f:
+            with open(self.state_file, "w") as f:
                 json.dump(state, f, indent=2)
             return True
         except:
             return False
+
     def load_state(self):
         """Load saved download state"""
         if not self.state_file.exists():
             return None
         try:
-            with open(self.state_file, 'r') as f:
+            with open(self.state_file, "r") as f:
                 state = json.load(f)
             # Check if state is recent (less than 24 hours old)
-            if time.time() - state.get('timestamp', 0) > AppPaths.DOWNLOAD_STATE_DURATION:
+            if time.time() - state.get("timestamp", 0) > AppPaths.DOWNLOAD_STATE_DURATION:
                 return None
             return state
         except:
             return None
+
     def clear_state(self):
         """Clear saved state"""
         try:

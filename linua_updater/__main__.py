@@ -4,10 +4,12 @@ import sys
 
 if sys.platform != "win32":
     import signal
+
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 try:
     import urllib3
+
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 except ImportError:
     pass
@@ -24,16 +26,20 @@ from linua_updater.utils.single_instance import SingleInstanceLock
 
 
 def main():
-    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+    if hasattr(Qt, "AA_EnableHighDpiScaling"):
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+    if hasattr(Qt, "AA_UseHighDpiPixmaps"):
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
     if SingleInstanceLock.is_already_running():
-        QMessageBox.critical(None, "Already Running", "Linua Updater is already running.\nCheck your system tray / notification area.")
+        QMessageBox.critical(
+            None, "Already Running", "Linua Updater is already running.\nCheck your system tray / notification area."
+        )
         sys.exit(1)
     instance_lock = SingleInstanceLock()
     if not instance_lock.acquire():
-        QMessageBox.critical(None, "Already Running", "Linua Updater is already running.\nCheck your system tray / notification area.")
+        QMessageBox.critical(
+            None, "Already Running", "Linua Updater is already running.\nCheck your system tray / notification area."
+        )
         sys.exit(1)
     app = QApplication(sys.argv)
     app.setApplicationName("Linua Updater")

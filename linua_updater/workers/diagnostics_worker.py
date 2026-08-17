@@ -11,6 +11,8 @@ class DiagnosticsWorker(QObject):
         self.network = network or {}
 
     def run(self):
-        tool = NetworkDiagnostics(None, region_api=self.network.get('region_api'), proxy_ports=self.network.get('proxy_ports'))
+        tool = NetworkDiagnostics(
+            None, region_api=self.network.get("region_api"), proxy_ports=self.network.get("proxy_ports")
+        )
         tool.diagnose()
         self.result_ready.emit(tool)

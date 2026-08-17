@@ -17,7 +17,7 @@ class SmartDownloader:
         self.resume_enabled = resume
         self.cleanup = cleanup
         self.session = requests.Session()
-        self.session.headers.update({'User-Agent': 'Linua-Updater/' + APP_VERSION})
+        self.session.headers.update({"User-Agent": "Linua-Updater/" + APP_VERSION})
         self._cancelled = False
         self._paused = False
         self._active = False
@@ -77,7 +77,7 @@ class SmartDownloader:
 
         if resume and os.path.exists(temp_path):
             downloaded = os.path.getsize(temp_path)
-            self.logger.log(f"Resuming download: {downloaded / (1024*1024):.1f}MB")
+            self.logger.log(f"Resuming download: {downloaded / (1024 * 1024):.1f}MB")
 
         success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
         if success:
@@ -129,7 +129,7 @@ class SmartDownloader:
                 return False, "Cancelled"
             try:
                 if attempt > 0:
-                    delay = min(2 ** attempt, 10)
+                    delay = min(2**attempt, 10)
                     time.sleep(delay)
                 success, msg = self._try_download(url, out_path, temp_path, start_byte, expected_size)
                 if success:
@@ -148,12 +148,12 @@ class SmartDownloader:
             os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
             headers = {}
             if start_byte > 0:
-                headers['Range'] = f'bytes={start_byte}-'
+                headers["Range"] = f"bytes={start_byte}-"
             with self.session.get(url, stream=True, timeout=30, verify=True, headers=headers) as r:
                 r.raise_for_status()
 
                 # Use expected_size if Content-Length is not available
-                total_size = int(r.headers.get('content-length', 0))
+                total_size = int(r.headers.get("content-length", 0))
                 if total_size == 0 and expected_size:
                     total_size = expected_size
 
@@ -161,14 +161,14 @@ class SmartDownloader:
                 if total_size > 10 * 1024 * 1024 * 1024:
                     return False, "File too large (>10GB)"
 
-                mode = 'ab' if start_byte > 0 else 'wb'
+                mode = "ab" if start_byte > 0 else "wb"
                 with open(temp_path, mode) as f:
                     downloaded = start_byte
                     start_time = time.time()
                     last_check_time = start_time
                     last_check_bytes = downloaded
 
-                    for chunk in r.iter_content(chunk_size=256*1024):
+                    for chunk in r.iter_content(chunk_size=256 * 1024):
                         if self._cancelled:
                             return False, "Cancelled"
                         if self._paused:
@@ -193,7 +193,9 @@ class SmartDownloader:
                                 # If speed is too slow for more than speed_check_duration seconds, abort
                                 if current_time - start_time > self.speed_check_duration:
                                     if current_speed < self.min_speed_threshold:
-                                        self.logger.log(f"Speed too slow: {current_speed/1024:.1f} KB/s (min: {self.min_speed_threshold/1024:.1f} KB/s)")
+                                        self.logger.log(
+                                            f"Speed too slow: {current_speed / 1024:.1f} KB/s (min: {self.min_speed_threshold / 1024:.1f} KB/s)"
+                                        )
                                         return False, "Speed too slow, trying alternative"
 
                                 last_check_time = current_time
@@ -206,7 +208,7 @@ class SmartDownloader:
                 if total_size > 0:
                     actual_size = os.path.getsize(temp_path)
                     # Only check size if we have Content-Length from server
-                    if int(r.headers.get('content-length', 0)) > 0 and actual_size != total_size:
+                    if int(r.headers.get("content-length", 0)) > 0 and actual_size != total_size:
                         return False, f"Size mismatch: expected {total_size}, got {actual_size}"
                 if os.path.exists(temp_path):
                     shutil.move(temp_path, out_path)
