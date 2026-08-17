@@ -78,6 +78,7 @@ class DownloadSource:
     def from_dict(cls, raw: object) -> Optional["DownloadSource"]:
         if not isinstance(raw, dict):
             return None
+
         source_type: Optional[str] = raw.get(DATABASE_DLC_KEY_TYPE)
         if source_type not in (SOURCE_TYPE_URL, SOURCE_TYPE_PARTS, SOURCE_TYPE_MAGNET):
             if DATABASE_DLC_KEY_PARTS in raw:
@@ -88,6 +89,7 @@ class DownloadSource:
                 source_type = SOURCE_TYPE_MAGNET
             else:
                 source_type = None
+
         checksums = CheckSums.from_dict(raw.get(DATABASE_DLC_KEY_CHECKSUM))
         priority_raw = raw.get(DATABASE_DLC_KEY_PRIORITY)
         if priority_raw is None or isinstance(priority_raw, bool):
@@ -99,6 +101,7 @@ class DownloadSource:
                 priority = int(priority_raw)
             except (TypeError, ValueError):
                 priority = 0
+
         if source_type == SOURCE_TYPE_PARTS:
             parts: List[DownloadSource] = []
             for part in raw.get(DATABASE_DLC_KEY_PARTS) or []:
@@ -106,10 +109,12 @@ class DownloadSource:
                 if parsed is not None:
                     parts.append(parsed)
             return cls(SOURCE_TYPE_PARTS, parts=parts, checksums=checksums, priority=priority)
+
         if source_type == SOURCE_TYPE_URL:
             return cls(SOURCE_TYPE_URL, source=raw.get(DATABASE_DLC_KEY_URL), checksums=checksums, priority=priority)
         if source_type == SOURCE_TYPE_MAGNET:
             return cls(SOURCE_TYPE_MAGNET, source=raw.get(DATABASE_DLC_KEY_MAGNET), checksums=checksums, priority=priority)
+
         return cls(source_type, checksums=checksums, priority=priority)
 
     @classmethod
@@ -161,21 +166,27 @@ class DLCInfo:
     def from_entry(cls, dlc_id: str, raw: Dict[str, Any]) -> "DLCInfo":
         entry_checksums = CheckSums.from_dict(raw.get(DATABASE_DLC_KEY_CHECKSUM))
         main: Optional[DownloadSource] = None
+
         if raw.get(DATABASE_DLC_KEY_URL):
             main = DownloadSource.url(raw[DATABASE_DLC_KEY_URL], checksums=entry_checksums)
+
         mirrors: List[DownloadSource] = []
         if raw.get(DATABASE_DLC_KEY_MAGNET):
             mirrors.append(DownloadSource.magnet(raw[DATABASE_DLC_KEY_MAGNET], checksums=entry_checksums))
+
         if raw.get(DATABASE_DLC_KEY_PARTS):
             part_sources: List[DownloadSource] = [DownloadSource.url(p) for p in raw[DATABASE_DLC_KEY_PARTS]]
             mirrors.append(DownloadSource.parts(part_sources, checksums=entry_checksums))
+
         for mirror in raw.get(DATABASE_DLC_KEY_MIRRORS) or []:
             source = DownloadSource.from_dict(mirror)
             if source is None:
                 continue
+
             if source.getCheckSums() is None and entry_checksums is not None:
                 source._checksums = entry_checksums
             mirrors.append(source)
+
         mirrors.sort(key=lambda s: s.getPriority(), reverse=True)
         return cls(dlc_id, raw.get(DATABASE_DLC_KEY_NAME, "Unknown"), raw.get(DATABASE_DLC_KEY_SIZE), main, mirrors)
 
@@ -232,10 +243,12 @@ class InstallationStats:
         with self.lock:
             if not self.start_time or not self.end_time:
                 return None
+
             total_duration = self.end_time - self.start_time
             avg_speed = (self.total_bytes / MB) / self.total_time if self.total_time > 0 else 0
             total_dlc = self.total_dlc if self.total_dlc is not None else len(self.downloads)
             successful = len(self.downloads)
+
             return {
                 "total_dlc": total_dlc,
                 "total_size_mb": self.total_bytes / MB,

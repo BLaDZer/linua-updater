@@ -54,5 +54,5 @@ class Aria2Finder:
             if path:
                 return path
 
-        self.logger.log("Torrent download: aria2c not found. Torrent downloads will be skipped", "WARNING")
+        self.logger.log("Torrent client: aria2c not found", "WARNING")
         return None

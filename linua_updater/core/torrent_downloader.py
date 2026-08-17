@@ -69,8 +69,9 @@ class TorrentDownloader:
         self.logger.log(f"Starting torrent download: {display} ({self._source})")
         if not self._client.is_available():
             self._active = False
-            self.logger.log("Torrent download: aria2c not found", "WARNING")
-            return False, "aria2c not found"
+            self.logger.log("Torrent download: no available torrent client found. Torrent downloads will be skipped", "WARNING")
+
+            return False, "no available torrent client found"
 
         try:
             if self._cancelled:  # cancel() beat download() to the start → no download
