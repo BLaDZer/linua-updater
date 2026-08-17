@@ -46,7 +46,7 @@ linua_updater/
 │   ├── models.py          # InstallationStats (+ DLC dataclass)
 │   ├── database.py        # DLCDatabase
 │   ├── downloader.py      # SmartDownloader
-│   ├── clients.py         # HTTPClient
+│   ├── clients.py         # HTTPClient, TorrentClient, Aria2TorrentClient, create_torrent_client
 │   ├── extractor.py       # Extractor
 │   ├── detection.py       # GameDetector
 │   ├── diagnostics.py     # NetworkDiagnostics
@@ -91,6 +91,7 @@ Supporting files:
 | `DLCDatabase` | `core/database.py` |
 | `SmartDownloader` | `core/downloader.py` |
 | `HTTPClient` | `core/clients.py` |
+| `TorrentClient`, `Aria2TorrentClient`, `create_torrent_client` | `core/clients.py` (alongside `HTTPClient`) |
 | `Extractor` | `core/extractor.py` |
 | `GameDetector` | `core/detection.py` |
 | `NetworkDiagnostics` | `core/diagnostics.py` |

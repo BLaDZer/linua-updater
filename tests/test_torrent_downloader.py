@@ -2,12 +2,12 @@ import os
 import subprocess
 import threading
 import time
-import types
 
 import pytest
 
 from linua_updater.constants import MB
-from linua_updater.core.torrent_downloader import TorrentDownloader, _popen_kwargs
+from linua_updater.core.clients import Aria2TorrentClient, TorrentClient
+from linua_updater.core.torrent_downloader import TorrentDownloader
 
 
 class FakeProcess:
@@ -88,25 +88,64 @@ class RecordingLogger:
         self.records.append((text, level))
 
 
+def make_dl(logger, aria2_path, cleanup=True):
+    return TorrentDownloader(
+        logger,
+        Aria2TorrentClient(logger, aria2_path=aria2_path),
+        cleanup=cleanup,
+    )
+
+
 @pytest.fixture
 def patch_finder(monkeypatch):
-    import linua_updater.core.torrent_downloader as td
-    monkeypatch.setattr(td, "Aria2Finder", FakeFinder)
+    import linua_updater.core.clients as clients_mod
+
+    monkeypatch.setattr(clients_mod, "Aria2Finder", FakeFinder)
 
 
-def test_parse_summary():
-    line = "[#hash123 12.3MiB/123.4MiB(10%) CN:2 DL:1.2MiB]"
-    progress, downloaded, total = TorrentDownloader._parse_summary(line)
-    assert progress == 10.0
-    assert downloaded == pytest.approx(12.3 * MB)
-    assert total == 0
+class StubTorrentClient(TorrentClient):
+    def __init__(self, available=True):
+        self.available = available
+        self.starts = 0
+        self.ticks = []
+        self.exits = []
+        self.stopped = 0
+        self.aborted = 0
+        self.block = threading.Event()
+        self.block.set()
+        self.started = threading.Event()
+        self._reads = 0
 
+    @property
+    def name(self):
+        return "stub"
 
-def test_parse_summary_100_percent():
-    line = "[#hash123 100MiB/100MiB(100%) CN:2 DL:1.0MiB]"
-    progress, downloaded, total = TorrentDownloader._parse_summary(line)
-    assert progress == 100.0
-    assert downloaded == pytest.approx(100 * MB)
+    def is_available(self):
+        return self.available
+
+    def start(self, magnet, out_dir):
+        self.starts += 1
+
+    def read_progress(self):
+        self._reads += 1
+        if self._reads == 1:
+            self.started.set()
+        if not self.block.is_set():
+            self.block.wait(timeout=5)
+        if self.ticks:
+            return self.ticks.pop(0)
+        return None
+
+    def stop(self):
+        self.stopped += 1
+
+    def abort(self):
+        self.aborted += 1
+
+    def wait_exit(self):
+        if self.exits:
+            return self.exits.pop(0)
+        return 0
 
 
 def test_download_success_cleans_artifacts(tmp_path, monkeypatch):
@@ -117,7 +156,7 @@ def test_download_success_cleans_artifacts(tmp_path, monkeypatch):
         exit_code=0,
     ))
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(FakeLogger(), str(aria2c), cleanup=True)
     ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=10 * MB)
     assert ok is True
     assert isinstance(result, list)
@@ -131,7 +170,7 @@ def test_download_logs_start_and_complete(tmp_path, monkeypatch):
         exit_code=0,
     ))
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(RecordingLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(RecordingLogger(), str(aria2c), cleanup=True)
     ok, result = dl.download("magnet:?xt=foo", out_dir, dlc_name="EP01")
     assert ok is True
     texts = [t for t, _ in dl.logger.records]
@@ -141,7 +180,7 @@ def test_download_logs_start_and_complete(tmp_path, monkeypatch):
 
 def test_missing_aria2_logs_warning(tmp_path):
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(RecordingLogger(), aria2_path="/no/such/aria2c")
+    dl = make_dl(RecordingLogger(), str(tmp_path / "no" / "such" / "aria2c"))
     ok, result = dl.download("magnet:?xt=foo", out_dir)
     assert ok is False
     assert any(
@@ -156,7 +195,7 @@ def test_nonzero_exit_logs_error(tmp_path, monkeypatch):
     aria2c.write_text("")
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: FakeProcess(exit_code=1))
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(RecordingLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(RecordingLogger(), str(aria2c), cleanup=True)
     ok, result = dl.download("magnet:?xt=foo", out_dir)
     assert ok is False
     assert any(
@@ -177,7 +216,7 @@ def test_cancel_logs_warning(tmp_path, monkeypatch):
 
     monkeypatch.setattr(subprocess, "Popen", slow_process)
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(RecordingLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(RecordingLogger(), str(aria2c), cleanup=True)
 
     def cancel_later():
         time.sleep(0.1)
@@ -213,7 +252,7 @@ def test_download_progress_callback(tmp_path, monkeypatch):
         exit_code=0,
     ))
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(FakeLogger(), str(aria2c), cleanup=True)
     dl.set_progress_callback(cb)
     ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * MB)
     assert ok is True
@@ -231,7 +270,7 @@ def test_download_cancelled_before_start_returns_cancelled(tmp_path, monkeypatch
 
     monkeypatch.setattr(subprocess, "Popen", capturing_popen)
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(FakeLogger(), str(aria2c), cleanup=True)
     dl.cancel()  # cancel lands before download() starts
     ok, result = dl.download("magnet:?xt=foo", out_dir)
     assert ok is False
@@ -250,7 +289,7 @@ def test_download_cancel_returns_cancelled(tmp_path, monkeypatch):
 
     monkeypatch.setattr(subprocess, "Popen", slow_process)
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(FakeLogger(), str(aria2c), cleanup=True)
 
     def cancel_later():
         time.sleep(0.1)
@@ -269,7 +308,7 @@ def test_download_nonzero_exit(tmp_path, monkeypatch):
     aria2c.write_text("")
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: FakeProcess(exit_code=1))
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(FakeLogger(), str(aria2c), cleanup=True)
     ok, result = dl.download("magnet:?xt=foo", out_dir)
     assert ok is False
     assert "exit code 1" in result
@@ -293,9 +332,10 @@ def test_download_pause_resume_restarts(tmp_path, patch_finder, monkeypatch):
     aria2c = tmp_path / "aria2c"
     aria2c.write_text("")
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
+    dl = make_dl(FakeLogger(), str(aria2c), cleanup=True)
 
     result = [None]
+
     def run_download():
         result[0] = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * MB)
 
@@ -313,63 +353,61 @@ def test_download_pause_resume_restarts(tmp_path, patch_finder, monkeypatch):
     assert call_count[0] == 2  # aria2c was re-invoked (restarted) after resume
 
 
-def test_popen_kwargs_linux_no_creationflags(monkeypatch):
-    import linua_updater.core.torrent_downloader as td
-    fake = types.SimpleNamespace()
-    monkeypatch.setattr(td, "subprocess", fake)
-    assert _popen_kwargs() == {}
+def test_stub_client_missing_aria2(tmp_path):
+    client = StubTorrentClient(available=False)
+    dl = TorrentDownloader(RecordingLogger(), client, cleanup=True)
+    ok, result = dl.download("magnet:?xt=foo", str(tmp_path / "out"))
+    assert ok is False
+    assert "aria2c not found" in result
+    assert any(
+        "aria2c not found" in t.lower()
+        for t, lv in dl.logger.records
+        if lv == "WARNING"
+    )
+    assert client.starts == 0
 
 
-def test_popen_kwargs_windows_sets_creationflags(monkeypatch):
-    import linua_updater.core.torrent_downloader as td
-    fake = types.SimpleNamespace(CREATE_NO_WINDOW=0x08000000)
-    monkeypatch.setattr(td, "subprocess", fake)
-    assert _popen_kwargs() == {"creationflags": 0x08000000}
-
-
-def test_download_passes_no_window_flag(tmp_path, monkeypatch):
-    aria2c = tmp_path / "aria2c"
-    aria2c.write_text("")
-    captured = {}
-
-    def capture_popen(*a, **kw):
-        captured.update(kw)
-        return FakeProcess(
-            lines=["[#hash123 100MiB/100MiB(100%) CN:1 DL:1.0MiB]"],
-            exit_code=0,
-        )
-
-    monkeypatch.setattr(subprocess, "Popen", capture_popen)
+def test_stub_client_progress_dedupe(tmp_path):
+    client = StubTorrentClient()
+    client.ticks = [
+        (10.0, 10 * MB, 0),
+        (10.0, 20 * MB, 0),
+        (50.0, 50 * MB, 0),
+        (100.0, 100 * MB, 0),
+    ]
+    events = []
+    dl = TorrentDownloader(FakeLogger(), client, cleanup=True)
+    dl.set_progress_callback(lambda p, d, t: events.append(p))
     out_dir = str(tmp_path / "out")
-    dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
-    ok, _ = dl.download("magnet:?xt=foo", out_dir)
+    ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * MB)
     assert ok is True
-    flag = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    if flag:
-        assert captured.get("creationflags") == flag
-    else:
-        assert "creationflags" not in captured
+    assert isinstance(result, list)
+    assert events == [10.0, 50.0, 100.0]  # repeated 10% was deduped
 
 
-def test_cancel_kills_when_terminate_ignored():
-    class StubbornProcess(FakeProcess):
-        def __init__(self):
-            super().__init__(lines=[], exit_code=0)
-            self.killed = False
+def test_stub_client_restart_loop(tmp_path):
+    """Pause/resume with a stub client drives the restart loop without subprocess."""
+    client = StubTorrentClient()
+    client.block.clear()
+    client.ticks = [(10.0, 10 * MB, 0), (100.0, 100 * MB, 0)]
+    dl = TorrentDownloader(FakeLogger(), client, cleanup=True)
+    out_dir = str(tmp_path / "out")
 
-        def poll(self):
-            return None  # always "running"
+    result = [None]
 
-        def wait(self, timeout=None):
-            if timeout is not None:
-                raise subprocess.TimeoutExpired(cmd="aria2c", timeout=timeout)
-            return self.exit_code
+    def run():
+        result[0] = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * MB)
 
-        def kill(self):
-            self.killed = True
+    t = threading.Thread(target=run)
+    t.start()
+    assert client.started.wait(timeout=2)
 
-    proc = StubbornProcess()
-    dl = TorrentDownloader(FakeLogger(), aria2_path="/fake/aria2c")
-    dl._process = proc
-    dl.cancel()
-    assert proc.killed is True
+    dl.pause()      # sets _paused; the blocked read_progress returns once released
+    client.block.set()
+    time.sleep(0.1)
+    dl.resume()     # clears _paused → download() restarts the client
+    t.join(timeout=5)
+
+    assert result[0][0] is True
+    assert client.starts == 2
+    assert client.stopped == 1

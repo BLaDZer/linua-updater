@@ -89,8 +89,9 @@ def test_install_single_cancelled_no_fallback(worker, tmp_path, monkeypatch):
     magnet_calls = []
 
     class FakeTorrentDownloader:
-        def __init__(self, logger):
+        def __init__(self, logger, client=None):
             self.logger = logger
+            self._client = client
 
         def cancel(self):
             pass
@@ -153,8 +154,9 @@ def test_install_single_url_first_then_magnet_mirror(worker, tmp_path, monkeypat
     magnet_calls = []
 
     class FakeTorrentDownloader:
-        def __init__(self, logger):
+        def __init__(self, logger, client=None):
             self.logger = logger
+            self._client = client
 
         def cancel(self):
             pass
@@ -230,8 +232,9 @@ def test_install_single_magnet_fallback_parts_runs_once(worker, tmp_path, monkey
     direct_downloads = []
 
     class FakeTorrentDownloader:
-        def __init__(self, logger):
+        def __init__(self, logger, client=None):
             self.logger = logger
+            self._client = client
 
         def cancel(self):
             pass

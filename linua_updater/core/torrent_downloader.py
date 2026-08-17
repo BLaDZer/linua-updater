@@ -1,96 +1,52 @@
 import os
-import re
-import subprocess
-import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 from linua_updater.constants import (
-    GB,
-    KB,
-    MB,
     RESULT_CANCELLED,
 )
+from linua_updater.core.clients import TorrentClient
 from linua_updater.logging_util import ImprovedLogger
-from linua_updater.utils.aria2 import Aria2Finder
 
-PROCESS_KILL_WAIT_SEC = 2
 PAUSE_POLL_INTERVAL_SEC = 0.1
-TORRENT_STOP_TIMEOUT_SEC = 600
-
-ARIA2_FLAG_SEED_TIME = "--seed-time=0"
-ARIA2_FLAG_BT_STOP_TIMEOUT = "--bt-stop-timeout="
-ARIA2_FLAG_CONTINUE = "--continue=true"
-ARIA2_FLAG_ALLOW_OVERWRITE = "--allow-overwrite=true"
-ARIA2_FLAG_FILE_ALLOCATION = "--file-allocation=none"
-ARIA2_FLAG_SUMMARY_INTERVAL = "--summary-interval=1"
-ARIA2_FLAG_CHECK_INTEGRITY = "--check-integrity=true"
 
 TORRENT_EXTENSIONS = (".aria2", ".torrent")
 
 
-def _popen_kwargs() -> Dict[str, Any]:
-    """Popen kwargs hiding the console window on Windows. No-op elsewhere."""
-    kwargs: Dict[str, Any] = {}
-    flag = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    if flag:
-        kwargs["creationflags"] = flag
-    return kwargs
-
-
 class TorrentDownloader:
-    def __init__(self, logger: ImprovedLogger, aria2_path: Optional[str] = None, cleanup: bool = True) -> None:
+    """Service orchestrating a single injected :class:`TorrentClient`.
+
+    Owns the pause/resume restart loop, progress-callback dedupe, artifact
+    cleanup and lifecycle logging; all engine-specific mechanics are delegated
+    to the client.
+    """
+
+    def __init__(self, logger: ImprovedLogger, client: TorrentClient, cleanup: bool = True) -> None:
         self.logger = logger
         self.cleanup = cleanup
-        self._aria2_path = aria2_path or Aria2Finder(logger).find()
+        self._client = client
         self._cancelled = False
         self._paused = False
         self._active = False
         self._display: Optional[str] = None
         self._source: Optional[str] = None
         self._progress_callback: Optional[Callable[[float, float, float], None]] = None
-        self._process: Optional[subprocess.Popen[str]] = None
-        self._command: Optional[List[str]] = None
-        self._out_dir: Optional[str] = None
-        self._lock = threading.Lock()
 
     def set_progress_callback(self, callback: Optional[Callable[[float, float, float], None]]) -> None:
         self._progress_callback = callback
 
     def cancel(self) -> None:
         self._cancelled = True
-        with self._lock:
-            if self._process and self._process.poll() is None:
-                try:
-                    self._process.terminate()
-                    try:
-                        self._process.wait(timeout=PROCESS_KILL_WAIT_SEC)
-                    except Exception:
-                        try:
-                            self._process.kill()
-                        except Exception:
-                            pass
-                        try:
-                            self._process.wait()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+        self._client.abort()
 
     def pause(self) -> None:
-        with self._lock:
-            self._paused = True
-            if self._process and self._process.poll() is None:
-                try:
-                    self._process.terminate()
-                except Exception:
-                    pass
+        self._paused = True
+        self._client.stop()
         if self._active:
             self.logger.log(f"Paused torrent download: {self._display}", "WARNING")
 
     def resume(self) -> None:
-        with self._lock:
-            self._paused = False
+        self._paused = False
         if self._active:
             self.logger.log(f"Resumed torrent download: {self._display}")
 
@@ -98,51 +54,6 @@ class TorrentDownloader:
         """Block until resume() or cancel(). Yields the GIL via sleep."""
         while self._paused and not self._cancelled:
             time.sleep(PAUSE_POLL_INTERVAL_SEC)
-
-    def _build_command(self, magnet: str, out_dir: str) -> List[str]:
-        assert self._aria2_path is not None  # guaranteed by download() before calling
-        cmd = [
-            self._aria2_path,
-            magnet,
-            "--dir=" + out_dir,
-            ARIA2_FLAG_SEED_TIME,
-            f"{ARIA2_FLAG_BT_STOP_TIMEOUT}{TORRENT_STOP_TIMEOUT_SEC}",
-            ARIA2_FLAG_CONTINUE,
-            ARIA2_FLAG_ALLOW_OVERWRITE,
-            ARIA2_FLAG_FILE_ALLOCATION,
-            ARIA2_FLAG_SUMMARY_INTERVAL,
-            ARIA2_FLAG_CHECK_INTEGRITY,
-        ]
-        return cmd
-
-    @staticmethod
-    def _parse_size(s: str) -> float:
-        s = s.strip()
-        multipliers = {
-            "KiB": KB,
-            "MiB": MB,
-            "GiB": GB,
-            "B": 1,
-        }
-        for unit, mult in multipliers.items():
-            if s.endswith(unit):
-                try:
-                    return float(s[: -len(unit)].strip()) * mult
-                except ValueError:
-                    return 0
-        try:
-            return float(s)
-        except ValueError:
-            return 0
-
-    @staticmethod
-    def _parse_summary(line: str) -> Tuple[Optional[float], float, float]:
-        m = re.search(r"\[(\S+?)\s+(\S+?)/(\S+?)\((\d+)%\)", line)
-        if not m:
-            return None, 0, 0
-        progress = float(m.group(4))
-        downloaded = TorrentDownloader._parse_size(m.group(2))
-        return progress, downloaded, 0
 
     def download(
         self,
@@ -156,7 +67,7 @@ class TorrentDownloader:
         self._source = magnet
         display = self._display
         self.logger.log(f"Starting torrent download: {display} ({self._source})")
-        if not self._aria2_path or not os.path.exists(self._aria2_path):
+        if not self._client.is_available():
             self._active = False
             self.logger.log("Torrent download: aria2c not found", "WARNING")
             return False, "aria2c not found"
@@ -165,35 +76,25 @@ class TorrentDownloader:
             if self._cancelled:  # cancel() beat download() to the start → no download
                 return False, RESULT_CANCELLED
             self._cancelled = False
-            self._out_dir = out_dir
-            os.makedirs(out_dir, exist_ok=True)
-            cmd = self._build_command(magnet, out_dir)
             total_bytes: float = 0
             last_progress: float = 0
 
             while True:  # outer restart loop — pause terminates, resume restarts
-                if self._cancelled:  # never re-launch aria2c after a cancel (also after resume/pause)
+                if self._cancelled:  # never re-launch after a cancel (also after resume/pause)
                     return False, RESULT_CANCELLED
                 try:
-                    self._process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        bufsize=1,
-                        **_popen_kwargs(),
-                    )
+                    self._client.start(magnet, out_dir)
                 except Exception as e:
                     return False, str(e)
-
-                if self._process.stdout is None:
-                    return False, "aria2c did not provide stdout"
 
                 restart = False
                 try:
                     while True:
-                        line = self._process.stdout.readline()
-                        if not line:
+                        try:
+                            tick = self._client.read_progress()
+                        except Exception as e:
+                            return False, str(e)
+                        if tick is None:  # stream end → exit this inner loop
                             break
                         if self._cancelled:
                             self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
@@ -201,37 +102,31 @@ class TorrentDownloader:
                         if self._paused:
                             restart = True  # halt; restart below once resumed
                             break
-                        parsed = self._parse_summary(line)
-                        if parsed and parsed[0] is not None:
-                            progress: float = parsed[0]
-                            downloaded: float = parsed[1]
-                            total: float = parsed[2]
-                            if total == 0 and expected_size:
-                                total = expected_size
-                            total_bytes = max(total_bytes, downloaded)
-                            if progress != last_progress and self._progress_callback:
-                                self._progress_callback(progress, downloaded, total)
-                                last_progress = progress
+                        progress, downloaded, total = tick
+                        if total == 0 and expected_size:
+                            total = expected_size
+                        total_bytes = max(total_bytes, downloaded)
+                        if progress != last_progress and self._progress_callback:
+                            self._progress_callback(progress, downloaded, total)
+                            last_progress = progress
                 except Exception:
                     pass
 
                 if restart:
-                    # loop hit a summary line while paused → wait, then restart
+                    # loop hit a progress tick while paused → wait, then restart
                     self._wait_for_resume()
                     if self._cancelled:
                         self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                         return False, RESULT_CANCELLED
-                    self._process.wait()  # reap the terminated child
-                    self._process = None
+                    self._client.wait_exit()  # reap the terminated child
                     continue  # re-run the command; --continue=true resumes from .aria2
 
-                exit_code = self._process.wait()
-                self._process = None
+                exit_code = self._client.wait_exit()
                 if self._cancelled:
                     self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                     return False, RESULT_CANCELLED
                 if self._paused:
-                    # readline hit EOF because pause() terminated the process → wait, then restart
+                    # read_progress hit EOF because pause() terminated the process → wait, then restart
                     self._wait_for_resume()
                     if self._cancelled:
                         self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread

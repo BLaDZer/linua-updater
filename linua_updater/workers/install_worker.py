@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from linua_updater.constants import DEFAULT_MIRRORS, PERCENT_MAX, RESULT_CANCELLED
+from linua_updater.core.clients import create_torrent_client
 from linua_updater.core.database import DLCDatabase
 from linua_updater.core.downloader import SmartDownloader
 from linua_updater.core.extractor import Extractor
@@ -186,7 +187,7 @@ class InstallWorker(QObject):
                 downloader: Union[TorrentDownloader, SmartDownloader]
 
                 if source.getType() == SOURCE_TYPE_MAGNET:
-                    downloader = TorrentDownloader(self.logger)
+                    downloader = TorrentDownloader(self.logger, create_torrent_client(self.logger))
                 else:
                     downloader = SmartDownloader(
                         self.logger,
