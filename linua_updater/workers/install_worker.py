@@ -121,6 +121,9 @@ class InstallWorker(QObject):
             if main is not None:
                 sources.append(main)
             sources.extend(info.getMirrors())
+
+            self.logger.log(f"{dlc_id}: found {len(sources)} of sources for this DLC", "INFO")
+
             last_message = None
             for source in sources:
                 if self._cancelled:
@@ -128,9 +131,16 @@ class InstallWorker(QObject):
                 if source.getType() == "magnet":
                     downloader = TorrentDownloader(self.logger)
                 else:
-                    downloader = SmartDownloader(self.logger, use_proxy=self.settings.get('use_proxy', True), resume=self.settings.get('resume_downloads', True), cleanup=self.settings.get('cleanup_temp', True), mirrors=self.mirrors)
+                    downloader = SmartDownloader(
+                        self.logger,
+                        use_proxy=self.settings.get('use_proxy', True),
+                        resume=self.settings.get('resume_downloads', True),
+                        cleanup=self.settings.get('cleanup_temp', True),
+                        mirrors=self.mirrors
+                    )
                 with self._active_downloaders_lock:
                     self._active_downloaders.append(downloader)
+
                 try:
                     installer = self._build_installer(dlc_id, info, source, downloader)
                     if installer is None:
@@ -139,6 +149,7 @@ class InstallWorker(QObject):
                         continue
                     installer.set_progress_callback(lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total))
                     success, message = installer.run()
+
                     if not success:
                         if self._cancelled or message == "Cancelled":
                             return dlc_id, False, "Cancelled"

@@ -18,10 +18,10 @@ fi
 # shellcheck disable=SC1090
 source "${VENV_DIR}/bin/activate"
 
-echo "[check] Running pytest"
-python -m pytest tests/
-
 echo "[check] Running ruff check"
 ruff check linua_updater/
+
+echo "[check] Running pytest"
+python -m pytest tests/
 
 echo "[check] All checks passed."

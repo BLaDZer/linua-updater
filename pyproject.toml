@@ -29,10 +29,27 @@ include = ["linua_updater*"]
 testpaths = ["tests"]
 
 [tool.ruff]
-line-length = 160
+line-length = 120
 target-version = "py38"
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
 [tool.ruff.lint]
+select = [
+    "E",      # pycodestyle
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "UP",     # pyupgrade
+    "SIM",    # flake8-simplify
+]
+
 # E501/E402: monolith lines are long and imports stay at module top for execution order.
 # The following rule classes are legacy, pre-existing defensive style carried over verbatim
 # from LinuaUpdater_v4.3.0.py (bare/blind except, try-except-pass/continue, naive datetimes,

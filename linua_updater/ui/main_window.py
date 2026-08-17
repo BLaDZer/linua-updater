@@ -6,7 +6,19 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSlot
 from PyQt6.QtGui import QFont, QFontDatabase
-from PyQt6.QtWidgets import QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QTextEdit, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from linua_updater.constants import APP_VERSION
 from linua_updater.core.detection import GameDetector

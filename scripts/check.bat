@@ -16,10 +16,10 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
 
 set "PY=%VENV_DIR%\Scripts\python.exe"
 
-echo [check] Running pytest
-"%PY%" -m pytest "%REPO_ROOT%\tests"
-
 echo [check] Running ruff check
 "%PY%" -m ruff check "%REPO_ROOT%\linua_updater"
+
+echo [check] Running pytest
+"%PY%" -m pytest "%REPO_ROOT%\tests"
 
 echo [check] All checks passed.

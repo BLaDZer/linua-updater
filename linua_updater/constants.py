@@ -8,7 +8,7 @@ GITHUB_REPO = "BLaDZer/linua-updater"
 DEFAULT_VERSION_CHECK_URL = "https://raw.githubusercontent.com/BLaDZer/linua-updater/main/version.json"
 DEFAULT_DATABASE_URL = "https://raw.githubusercontent.com/BLaDZer/linua-updater/main/database.json"
 DEFAULT_REGION_API = "https://ipapi.co/json/"
-DEFAULT_PROXY_PORTS = [1080, 8080, 7890, 10808, 8888, 1087]
+DEFAULT_PROXY_PORTS = [1080, 2080, 8080, 7890, 10808, 8888, 1087]
 DEFAULT_MIRRORS = {
     "github.com": "https://gh-proxy.com/https://github.com",
     "raw.githubusercontent.com": "https://gh-proxy.com/https://raw.githubusercontent.com",
