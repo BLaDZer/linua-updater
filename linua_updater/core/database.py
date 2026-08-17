@@ -1,6 +1,8 @@
 import copy
 import json
 import time
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -25,16 +27,16 @@ class DLCDatabase:
     4. finally the hardcoded :data:`~linua_updater.constants.DEFAULT_DATABASE_FALLBACK`.
     """
 
-    def __init__(self, db_url=None, cache_file=None, cache_duration=None):
+    def __init__(self, db_url: Optional[str] = None, cache_file: Optional[Path] = None, cache_duration: Optional[float] = None) -> None:
         self.db_url = db_url or DEFAULT_DATABASE_URL
         self.cache_file = cache_file or AppPaths.DATABASE_CACHE_FILE
         self.cache_duration = cache_duration if cache_duration is not None else AppPaths.DATABASE_CACHE_DURATION
-        self.data = self._load()
-        self.dlc = self.data.get("dlc", {})
+        self.data: Dict[str, Any] = self._load()
+        self.dlc: Dict[str, Any] = self.data.get("dlc", {})
         self._apply_sizes()
         self._build_infos()
 
-    def refresh(self):
+    def refresh(self) -> bool:
         """Invalidate the cache file and reload, re-running the resolution order.
         Returns True when the payload came from the remote server."""
         try:
@@ -48,15 +50,15 @@ class DLCDatabase:
         self._build_infos()
         return self.source == "remote"
 
-    def _apply_sizes(self):
+    def _apply_sizes(self) -> None:
         for dlc_id, info in self.dlc.items():
             if dlc_id in SIZE_ESTIMATES:
                 info["size"] = SIZE_ESTIMATES[dlc_id]
 
-    def _build_infos(self):
-        self._infos = {dlc_id: DLCInfo.from_entry(dlc_id, info) for dlc_id, info in self.dlc.items()}
+    def _build_infos(self) -> None:
+        self._infos: Dict[str, DLCInfo] = {dlc_id: DLCInfo.from_entry(dlc_id, info) for dlc_id, info in self.dlc.items()}
 
-    def _load(self):
+    def _load(self) -> Dict[str, Any]:
         fresh = self._load_cache(fresh_only=True)
         if fresh is not None:
             self.source = "cache"
@@ -73,7 +75,7 @@ class DLCDatabase:
         self.source = "fallback"
         return copy.deepcopy(DEFAULT_DATABASE_FALLBACK)
 
-    def _load_cache(self, fresh_only=True):
+    def _load_cache(self, fresh_only: bool = True) -> Optional[Dict[str, Any]]:
         """Return the cached payload, or ``None`` when missing/invalid/stale."""
         try:
             with open(self.cache_file, encoding="utf-8") as f:
@@ -82,22 +84,24 @@ class DLCDatabase:
             if fresh_only and time.time() - data.get("timestamp", 0) >= self.cache_duration:
                 return None
             payload = data.get("database")
-            return payload if self._is_valid(payload) else None
+            if isinstance(payload, dict) and self._is_valid(payload):
+                return payload
         except Exception:
-            return None
+            pass
+        return None
 
-    def _download(self):
+    def _download(self) -> Optional[Dict[str, Any]]:
         try:
             response = requests.get(self.db_url, timeout=10)
             if response.status_code == 200:
                 payload = response.json()
-                if self._is_valid(payload):
+                if isinstance(payload, dict) and self._is_valid(payload):
                     return payload
         except Exception:
             pass
         return None
 
-    def _save_cache(self, payload):
+    def _save_cache(self, payload: Dict[str, Any]) -> None:
         try:
             AppPaths.ensure()
             cache = {"timestamp": time.time(), "database": payload}
@@ -107,23 +111,23 @@ class DLCDatabase:
             pass
 
     @staticmethod
-    def _is_valid(payload):
+    def _is_valid(payload: Any) -> bool:
         if not isinstance(payload, dict):
             return False
         dlc = payload.get("dlc")
         return isinstance(dlc, dict) and len(dlc) > 0
 
-    def all(self):
+    def all(self) -> Dict[str, DLCInfo]:
         return self._infos
 
-    def get(self, dlc_id):
+    def get(self, dlc_id: str) -> Optional[DLCInfo]:
         return self._infos.get(dlc_id)
 
-    def get_key(self, key, default=None):
+    def get_key(self, key: str, default: Any = None) -> Any:
         """Return any top-level key of the remote database payload (e.g. ``version``)."""
         return self.data.get(key, default)
 
-    def source_description(self):
+    def source_description(self) -> str:
         """One ready-to-log sentence naming which branch produced the payload."""
         if self.source == "remote":
             return f"DLC database: refreshed from remote ({self.db_url})"

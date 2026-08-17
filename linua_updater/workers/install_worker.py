@@ -1,6 +1,6 @@
 import threading
 from concurrent.futures import CancelledError, as_completed
-from typing import Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -9,7 +9,7 @@ from linua_updater.core.database import DLCDatabase
 from linua_updater.core.downloader import SmartDownloader
 from linua_updater.core.extractor import Extractor
 from linua_updater.core.installers import MultiPartInstaller, SingleDLCInstaller, TorrentInstaller
-from linua_updater.core.models import InstallationStats
+from linua_updater.core.models import DLCInfo, DownloadSource, InstallationStats
 from linua_updater.core.parallel import ParallelInstallManager
 from linua_updater.core.torrent_downloader import TorrentDownloader
 from linua_updater.logging_util import SignalLogger
@@ -18,7 +18,7 @@ from linua_updater.persistence.download_state import DownloadState
 from linua_updater.utils.sevenzip import SevenZipFinder
 
 
-def installer_kind(source):
+def installer_kind(source: Optional[DownloadSource]) -> str:
     if source is None:
         return "single"
     if source.getType() == "magnet":
@@ -37,7 +37,13 @@ class InstallWorker(QObject):
     stats_ready = pyqtSignal(dict)
     log_updated = pyqtSignal(str, str)
 
-    def __init__(self, dlc_ids, game_path, settings=None, mirrors=None):
+    def __init__(
+        self,
+        dlc_ids: List[str],
+        game_path: str,
+        settings: Optional[Dict[str, Any]] = None,
+        mirrors: Optional[Dict[str, str]] = None,
+    ) -> None:
         super().__init__()
         self.dlc_ids = dlc_ids
         self.game_path = game_path
@@ -45,7 +51,7 @@ class InstallWorker(QObject):
         self.mirrors = mirrors if mirrors else dict(DEFAULT_MIRRORS)
         self.max_workers = self.settings.get("max_threads", 3)
         self._cancelled = False
-        self.parallel_manager = None
+        self.parallel_manager: Optional[ParallelInstallManager] = None
         self.logger = SignalLogger(self.log_updated.emit)
         self.db = DLCDatabase()
         self.logger.log(self.db.source_description(), "INFO")
@@ -53,16 +59,16 @@ class InstallWorker(QObject):
         self.extractor = Extractor(self.logger)
         self.stats = InstallationStats()
         self.stats.total_dlc = len(self.dlc_ids)
-        self.download_progress = {}
+        self.download_progress: Dict[str, float] = {}
         self._paused = False
-        self._completed_ids = []
-        self._failed_ids = []
+        self._completed_ids: List[str] = []
+        self._failed_ids: List[str] = []
         self._download_queue = DownloadQueue()
         self._download_state = DownloadState()
-        self._active_downloaders = []
+        self._active_downloaders: List[Union[TorrentDownloader, SmartDownloader]] = []
         self._active_downloaders_lock = threading.Lock()
 
-    def cancel(self):
+    def cancel(self) -> None:
         self._cancelled = True
         if self.parallel_manager:
             self.parallel_manager.cancel_all()
@@ -73,7 +79,7 @@ class InstallWorker(QObject):
         for downloader in active:
             downloader.cancel()
 
-    def pause(self):
+    def pause(self) -> None:
         self._paused = True
         with self._active_downloaders_lock:
             active = list(self._active_downloaders)
@@ -81,29 +87,37 @@ class InstallWorker(QObject):
             downloader.pause()
         self._save_download_state()
 
-    def resume(self):
+    def resume(self) -> None:
         self._paused = False
         with self._active_downloaders_lock:
             active = list(self._active_downloaders)
         for downloader in active:
             downloader.resume()
 
-    def _save_download_state(self):
+    def _save_download_state(self) -> None:
         try:
             for dlc_id in self.dlc_ids:
                 info = self.db.all().get(dlc_id)
                 main = info.getMainDownloadSource() if info else None
-                if main and main.getSource():
-                    self._download_queue.add(dlc_id, main.getSource(), self.download_progress.get(dlc_id, 0))
+                if main:
+                    source = main.getSource()
+                    if source:
+                        self._download_queue.add(dlc_id, source, self.download_progress.get(dlc_id, 0))
             self._download_state.save_state(self.dlc_ids, self._completed_ids, self._failed_ids, self.game_path)
         except Exception as e:
             self.logger.log(f"Failed to save download state: {e}", "ERROR")
 
-    def _build_installer(self, dlc_id, info, source, downloader):
+    def _build_installer(
+        self,
+        dlc_id: str,
+        info: DLCInfo,
+        source: DownloadSource,
+        downloader: Union[TorrentDownloader, SmartDownloader],
+    ) -> Optional[Union[SingleDLCInstaller, MultiPartInstaller, TorrentInstaller]]:
         kind = installer_kind(source)
         if kind == "magnet":
             return TorrentInstaller(
-                dlc_id, info, source, self.game_path, downloader, self.extractor, self.logger, self.stats
+                dlc_id, info, source, self.game_path, cast(TorrentDownloader, downloader), self.extractor, self.logger, self.stats
             )
         if kind == "parts":
             seven_finder = SevenZipFinder(self.logger)
@@ -111,13 +125,13 @@ class InstallWorker(QObject):
             if not seven_path:
                 return None
             return MultiPartInstaller(
-                dlc_id, info, source, self.game_path, downloader, self.extractor, seven_path, self.logger, self.stats
+                dlc_id, info, source, self.game_path, cast(SmartDownloader, downloader), self.extractor, seven_path, self.logger, self.stats
             )
         return SingleDLCInstaller(
-            dlc_id, info, source, self.game_path, downloader, self.extractor, self.logger, self.stats
+            dlc_id, info, source, self.game_path, cast(SmartDownloader, downloader), self.extractor, self.logger, self.stats
         )
 
-    def _install_single(self, dlc_id):
+    def _install_single(self, dlc_id: str) -> Tuple[str, bool, str]:
         info = self.db.all().get(dlc_id)
         if not info:
             return dlc_id, False, "DLC not found in database"
@@ -157,9 +171,12 @@ class InstallWorker(QObject):
                         last_message = "7-zip not found"
                         continue
                     installer.set_progress_callback(
-                        lambda progress, downloaded, total: self._handle_progress(dlc_id, progress, downloaded, total)
+                        lambda progress, downloaded, total: self._handle_progress(
+                            dlc_id, progress, cast(int, downloaded), cast(int, total)
+                        )
                     )
                     success, message = installer.run()
+                    message = cast(str, message)
 
                     if not success:
                         if self._cancelled or message == "Cancelled":
@@ -181,7 +198,7 @@ class InstallWorker(QObject):
             self.logger.log(f"{dlc_id}: ERROR - {e!s}", "ERROR")
             return dlc_id, False, f"Error: {e!s}"
 
-    def run(self):
+    def run(self) -> None:
         try:
             self.started.emit()
             self.stats.start()
@@ -231,7 +248,7 @@ class InstallWorker(QObject):
             self.result_ready.emit("SYSTEM", False, f"Worker error: {e!s}")
             self.finished.emit()
 
-    def _handle_progress(self, dlc_id, progress, downloaded, total):
+    def _handle_progress(self, dlc_id: str, progress: float, downloaded: int, total: int) -> None:
         if self.parallel_manager:
             self.parallel_manager.update_download_progress(dlc_id, progress, downloaded, total)
         self.download_progress[dlc_id] = progress

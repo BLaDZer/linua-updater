@@ -6,13 +6,15 @@ import time
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Callable, Optional, Tuple
 
 from PyQt6.QtCore import QStandardPaths
+from PyQt6.QtWidgets import QTextEdit
 
 from linua_updater.paths import AppPaths
 
 
-def _reveal_in_explorer(path):
+def _reveal_in_explorer(path: Path) -> None:
     """Cross-platform helper to reveal a file/folder in the file explorer"""
     try:
         directory = path.parent if path.is_file() else path
@@ -27,11 +29,11 @@ def _reveal_in_explorer(path):
 
 
 class ImprovedLogger:
-    def __init__(self, widget=None):
+    def __init__(self, widget: Optional[QTextEdit] = None) -> None:
         self.widget = widget
         self._setup_file_logger()
 
-    def _setup_file_logger(self):
+    def _setup_file_logger(self) -> None:
         AppPaths.ensure()
         log_dir = AppPaths.LOG_DIR
         log_file = AppPaths.LOG_FILE
@@ -45,7 +47,7 @@ class ImprovedLogger:
             handler.setFormatter(formatter)
             self.file_logger.addHandler(handler)
 
-    def log(self, text, level="INFO"):
+    def log(self, text: str, level: str = "INFO") -> None:
         timestamp = time.strftime("[%H:%M:%S]")
 
         if level == "ERROR":
@@ -76,7 +78,7 @@ class ImprovedLogger:
             self.widget.append(line)
             self.widget.ensureCursorVisible()
 
-    def export_logs(self, target_path=None):
+    def export_logs(self, target_path: Optional[str] = None) -> Tuple[bool, str]:
         """Export logs to a robust default location."""
         try:
             log_dir = AppPaths.LOG_DIR
@@ -122,11 +124,11 @@ class SignalLogger(ImprovedLogger):
     emitter with ``(text, level)``.
     """
 
-    def __init__(self, emitter, widget=None):
+    def __init__(self, emitter: Callable[[str, str], None], widget: Optional[QTextEdit] = None) -> None:
         super().__init__(widget=widget)
         self._emitter = emitter
 
-    def log(self, text, level="INFO"):
+    def log(self, text: str, level: str = "INFO") -> None:
         super().log(text, level)
         if callable(self._emitter):
             self._emitter(text, level)

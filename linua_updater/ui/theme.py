@@ -1,8 +1,9 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtWidgets import QApplication
 
 
-def apply_dark_palette(app):
+def apply_dark_palette(app: QApplication) -> None:
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
     palette.setColor(QPalette.ColorRole.WindowText, Qt.GlobalColor.white)

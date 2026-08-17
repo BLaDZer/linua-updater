@@ -2,17 +2,20 @@ import os
 import shutil
 import subprocess
 import zipfile
+from typing import Optional, Tuple
+
+from linua_updater.logging_util import ImprovedLogger
 
 
 class Extractor:
-    def __init__(self, logger):
+    def __init__(self, logger: Optional[ImprovedLogger]) -> None:
         self.logger = logger
 
-    def log(self, text, level="INFO"):
+    def log(self, text: str, level: str = "INFO") -> None:
         if self.logger:
             self.logger.log(text, level)
 
-    def extract_zip(self, file, out_dir):
+    def extract_zip(self, file: str, out_dir: str) -> Tuple[bool, str]:
         try:
             os.makedirs(out_dir, exist_ok=True)
             if not zipfile.is_zipfile(file):
@@ -44,7 +47,7 @@ class Extractor:
         except Exception as e:
             return False, str(e)
 
-    def extract_7z(self, seven, archive_path, out_dir):
+    def extract_7z(self, seven: str, archive_path: str, out_dir: str) -> Tuple[bool, str]:
         try:
             if not os.path.exists(seven):
                 return False, "7-Zip not found"

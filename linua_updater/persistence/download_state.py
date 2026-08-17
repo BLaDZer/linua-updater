@@ -1,5 +1,6 @@
 import json
 import time
+from typing import Any, Dict, List, Optional
 
 from linua_updater.paths import AppPaths
 
@@ -7,11 +8,11 @@ from linua_updater.paths import AppPaths
 class DownloadState:
     """Saves download state for pause/resume functionality"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         AppPaths.ensure()
         self.state_file = AppPaths.DOWNLOAD_STATE_FILE
 
-    def save_state(self, dlc_ids, completed, failed, game_path=None):
+    def save_state(self, dlc_ids: List[str], completed: List[str], failed: List[str], game_path: Optional[str] = None) -> bool:
         """Save current download state"""
         state = {
             "timestamp": time.time(),
@@ -28,13 +29,15 @@ class DownloadState:
         except:
             return False
 
-    def load_state(self):
+    def load_state(self) -> Optional[Dict[str, Any]]:
         """Load saved download state"""
         if not self.state_file.exists():
             return None
         try:
             with open(self.state_file) as f:
                 state = json.load(f)
+            if not isinstance(state, dict):
+                return None
             # Check if state is recent (less than 24 hours old)
             if time.time() - state.get("timestamp", 0) > AppPaths.DOWNLOAD_STATE_DURATION:
                 return None
@@ -42,7 +45,7 @@ class DownloadState:
         except:
             return None
 
-    def clear_state(self):
+    def clear_state(self) -> None:
         """Clear saved state"""
         try:
             if self.state_file.exists():

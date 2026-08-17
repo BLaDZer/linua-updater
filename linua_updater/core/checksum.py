@@ -1,12 +1,15 @@
 import hashlib
 import os
+from typing import List, Optional
+
+from linua_updater.core.models import CheckSums
 
 SUPPORTED_CHECKSUMS = ("sha256", "sha1", "md5")
 
 _CHUNK_SIZE = 1024 * 1024
 
 
-def verify_file_checksums(file_path, checksums):
+def verify_file_checksums(file_path: str, checksums: Optional[CheckSums]) -> List[str]:
     if not checksums:
         return []
     wanted = []

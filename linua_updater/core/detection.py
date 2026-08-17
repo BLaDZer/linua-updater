@@ -2,6 +2,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import List, Optional, Set
 
 
 class GameDetector:
@@ -9,12 +10,12 @@ class GameDetector:
     _EXE_NAME = "TS4_x64.exe"
 
     @staticmethod
-    def _has_valid_exe(path):
+    def _has_valid_exe(path: str) -> bool:
         exe_check = os.path.join(path, *GameDetector._EXE_REL)
         return os.path.exists(exe_check)
 
     @staticmethod
-    def find_from_registry():
+    def find_from_registry() -> List[str]:
         if sys.platform != "win32":
             return []
         try:
@@ -42,7 +43,7 @@ class GameDetector:
             return []
 
     @staticmethod
-    def _steam_vdf_candidates(home):
+    def _steam_vdf_candidates(home: Path) -> List[Path]:
         if sys.platform == "darwin":
             return [home / "Library" / "Application Support" / "Steam" / "steamapps" / "libraryfolders.vdf"]
         return [
@@ -51,7 +52,7 @@ class GameDetector:
         ]
 
     @staticmethod
-    def _steam_home_guesses(home):
+    def _steam_home_guesses(home: Path) -> List[str]:
         if sys.platform == "darwin":
             return [str(home / "Library" / "Application Support" / "Steam" / "steamapps" / "common" / "The Sims 4")]
         return [
@@ -60,7 +61,7 @@ class GameDetector:
         ]
 
     @staticmethod
-    def _parse_steam_library_paths(vdf_path):
+    def _parse_steam_library_paths(vdf_path: Path) -> List[str]:
         paths = []
         try:
             with open(vdf_path, "rb") as f:
@@ -75,7 +76,7 @@ class GameDetector:
         return paths
 
     @staticmethod
-    def _find_proton_exe(game_folder):
+    def _find_proton_exe(game_folder: str) -> Optional[str]:
         game_dir = os.path.join(game_folder, "Game")
         if not os.path.isdir(game_dir):
             return None
@@ -97,12 +98,12 @@ class GameDetector:
         return None
 
     @staticmethod
-    def find_from_steam():
+    def find_from_steam() -> List[str]:
         if sys.platform == "win32":
             return []
         home = Path.home()
-        found_paths = []
-        seen = set()
+        found_paths: List[str] = []
+        seen: Set[str] = set()
         for vdf in GameDetector._steam_vdf_candidates(home):
             if not vdf.is_file():
                 continue
@@ -120,8 +121,8 @@ class GameDetector:
         return found_paths
 
     @staticmethod
-    def find_game():
-        found_paths = []
+    def find_game() -> Optional[str]:
+        found_paths: List[str] = []
         registry_paths = GameDetector.find_from_registry()
         for path in registry_paths:
             if path not in found_paths and GameDetector._has_valid_exe(path):

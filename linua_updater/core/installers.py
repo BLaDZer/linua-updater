@@ -2,16 +2,31 @@ import os
 import tempfile
 import threading
 import time
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple, Union, cast
 
 from linua_updater.core.checksum import verify_file_checksums
+from linua_updater.core.downloader import SmartDownloader
+from linua_updater.core.extractor import Extractor
+from linua_updater.core.models import DLCInfo, DownloadSource, InstallationStats
+from linua_updater.core.torrent_downloader import TorrentDownloader
+from linua_updater.logging_util import ImprovedLogger
 from linua_updater.utils.sevenzip import SevenZipFinder
 
 ProgressCallback = Callable[[float, float, float], None]
 
 
 class SingleDLCInstaller:
-    def __init__(self, dlc_id, info, source, game_path, downloader, extractor, logger, stats=None):
+    def __init__(
+        self,
+        dlc_id: str,
+        info: DLCInfo,
+        source: DownloadSource,
+        game_path: str,
+        downloader: SmartDownloader,
+        extractor: Extractor,
+        logger: Optional[ImprovedLogger],
+        stats: Optional[InstallationStats] = None,
+    ) -> None:
         self.dlc = dlc_id
         self.info = info
         self.source = source
@@ -21,16 +36,16 @@ class SingleDLCInstaller:
         self.logger = logger
         self.stats = stats
         self._progress_callback: Optional[ProgressCallback] = None
-        self._start_time = None
+        self._start_time: Optional[float] = None
 
-    def set_progress_callback(self, callback):
+    def set_progress_callback(self, callback: Optional[ProgressCallback]) -> None:
         self._progress_callback = callback
 
-    def log(self, text, level="INFO"):
+    def log(self, text: str, level: str = "INFO") -> None:
         if self.logger:
             self.logger.log(f"{self.dlc}: {text}", level)
 
-    def run(self):
+    def run(self) -> Tuple[bool, str]:
         temp = None
         try:
             self._start_time = time.time()
@@ -90,7 +105,18 @@ class SingleDLCInstaller:
 
 
 class MultiPartInstaller:
-    def __init__(self, dlc_id, info, source, game_path, downloader, extractor, seven_path, logger, stats=None):
+    def __init__(
+        self,
+        dlc_id: str,
+        info: DLCInfo,
+        source: DownloadSource,
+        game_path: str,
+        downloader: SmartDownloader,
+        extractor: Extractor,
+        seven_path: str,
+        logger: Optional[ImprovedLogger],
+        stats: Optional[InstallationStats] = None,
+    ) -> None:
         self.dlc = dlc_id
         self.info = info
         self.source = source
@@ -101,16 +127,16 @@ class MultiPartInstaller:
         self.logger = logger
         self.stats = stats
         self._progress_callback: Optional[ProgressCallback] = None
-        self._start_time = None
+        self._start_time: Optional[float] = None
 
-    def set_progress_callback(self, callback):
+    def set_progress_callback(self, callback: Optional[ProgressCallback]) -> None:
         self._progress_callback = callback
 
-    def log(self, text, level="INFO"):
+    def log(self, text: str, level: str = "INFO") -> None:
         if self.logger:
             self.logger.log(f"{self.dlc}: {text}", level)
 
-    def run(self):
+    def run(self) -> Tuple[bool, str]:
         downloaded_files: List[str] = []
         total_size = 0
         try:
@@ -123,7 +149,7 @@ class MultiPartInstaller:
             total_parts = len(parts)
             self.log(f"Downloading {self.dlc}: {total_parts} parts")
             for i, part in enumerate(parts):
-                url = part.getSource()
+                url = cast(str, part.getSource())
                 name = f"{self.dlc}_{threading.get_ident()}.7z.{str(i + 1).zfill(3)}"
                 out = os.path.join(tempfile.gettempdir(), name)
                 dlc_name = f"{self.dlc} Part {i + 1}"
@@ -133,8 +159,13 @@ class MultiPartInstaller:
                     callback = self._progress_callback
 
                     def part_progress(
-                        progress, downloaded, total, base=current_base, weight=part_weight, cb=callback
-                    ):
+                        progress: float,
+                        downloaded: float,
+                        total: float,
+                        base: float = current_base,
+                        weight: float = part_weight,
+                        cb: ProgressCallback = callback,
+                    ) -> None:
                         total_progress = base + (progress * weight / 100)
                         cb(total_progress, downloaded, total)
 
@@ -183,7 +214,17 @@ class MultiPartInstaller:
 
 
 class TorrentInstaller:
-    def __init__(self, dlc_id, info, source, game_path, downloader, extractor, logger, stats=None):
+    def __init__(
+        self,
+        dlc_id: str,
+        info: DLCInfo,
+        source: DownloadSource,
+        game_path: str,
+        downloader: TorrentDownloader,
+        extractor: Extractor,
+        logger: Optional[ImprovedLogger],
+        stats: Optional[InstallationStats] = None,
+    ) -> None:
         self.dlc = dlc_id
         self.info = info
         self.source = source
@@ -193,16 +234,16 @@ class TorrentInstaller:
         self.logger = logger
         self.stats = stats
         self._progress_callback: Optional[ProgressCallback] = None
-        self._start_time = None
+        self._start_time: Optional[float] = None
 
-    def set_progress_callback(self, callback):
+    def set_progress_callback(self, callback: Optional[ProgressCallback]) -> None:
         self._progress_callback = callback
 
-    def log(self, text, level="INFO"):
+    def log(self, text: str, level: str = "INFO") -> None:
         if self.logger:
             self.logger.log(f"{self.dlc}: {text}", level)
 
-    def run(self):
+    def run(self) -> Tuple[bool, Union[str, List[str]]]:
         temp = None
         try:
             self._start_time = time.time()
@@ -213,13 +254,14 @@ class TorrentInstaller:
             dlc_name = f"{self.dlc} - {self.info.getName()}"
             expected_size = self.info.getSize()
             if self._progress_callback:
+                callback = self._progress_callback
                 self.dl.set_progress_callback(
-                    lambda progress, downloaded, total: self._progress_callback(progress, downloaded, total)
+                    lambda progress, downloaded, total: callback(progress, downloaded, total)
                 )
             ok, result = self.dl.download(magnet, temp, dlc_name=dlc_name, expected_size=expected_size)
             if not ok:
                 if self.stats:
-                    self.stats.record_error(self.dlc, result)
+                    self.stats.record_error(self.dlc, str(result))
                 return False, result
             if not isinstance(result, list) or not result:
                 return False, "No files downloaded from torrent"

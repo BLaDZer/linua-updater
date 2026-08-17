@@ -45,11 +45,7 @@ warn_return_any = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 disallow_any_generics = true
-
-# The codebase is largely untyped (grown organically from a single-file script).
-# Forcing annotations on every function is deferred until a migration task;
-# check_untyped_defs already checks the bodies of untyped functions.
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 
 [tool.ruff.format]
 quote-style = "double"

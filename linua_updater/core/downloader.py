@@ -2,14 +2,25 @@ import os
 import shutil
 import threading
 import time
+from typing import Callable, Dict, Optional, Tuple
 
 import requests
 
 from linua_updater.constants import APP_VERSION, DEFAULT_MIRRORS
+from linua_updater.core.diagnostics import NetworkDiagnostics
+from linua_updater.logging_util import ImprovedLogger
 
 
 class SmartDownloader:
-    def __init__(self, logger, diagnostics=None, use_proxy=True, resume=True, cleanup=True, mirrors=None):
+    def __init__(
+        self,
+        logger: ImprovedLogger,
+        diagnostics: Optional[NetworkDiagnostics] = None,
+        use_proxy: bool = True,
+        resume: bool = True,
+        cleanup: bool = True,
+        mirrors: Optional[Dict[str, str]] = None,
+    ) -> None:
         self.logger = logger
         self.diagnostics = diagnostics
         self.mirrors = mirrors if mirrors else dict(DEFAULT_MIRRORS)
@@ -21,49 +32,56 @@ class SmartDownloader:
         self._cancelled = False
         self._paused = False
         self._active = False
-        self._display = None
-        self._source = None
+        self._display: Optional[str] = None
+        self._source: Optional[str] = None
         self._pause_cond = threading.Condition()
-        self._progress_callback = None
+        self._progress_callback: Optional[Callable[[float, float, float], None]] = None
         self.min_speed_threshold = 50 * 1024  # 50 KB/s minimum speed
         self.speed_check_duration = 10  # Check speed after 10 seconds
 
-    def set_progress_callback(self, callback):
+    def set_progress_callback(self, callback: Optional[Callable[[float, float, float], None]]) -> None:
         self._progress_callback = callback
 
-    def set_proxy(self, proxy_dict):
+    def set_proxy(self, proxy_dict: Optional[Dict[str, str]]) -> None:
         if proxy_dict:
             self.session.proxies = proxy_dict
         else:
             self.session.proxies = {}
 
-    def cancel(self):
+    def cancel(self) -> None:
         self._cancelled = True
         with self._pause_cond:
             self._paused = False
             self._pause_cond.notify_all()
 
-    def pause(self):
+    def pause(self) -> None:
         with self._pause_cond:
             self._paused = True
         if self._active:
             self.logger.log(f"Paused {self._display} from {self._source}", "WARNING")
 
-    def resume(self):
+    def resume(self) -> None:
         with self._pause_cond:
             self._paused = False
             self._pause_cond.notify_all()
         if self._active:
             self.logger.log(f"Resumed {self._display} from {self._source}")
 
-    def _log_downloaded(self, out_path):
+    def _log_downloaded(self, out_path: str) -> None:
         try:
             size = os.path.getsize(out_path)
         except OSError:
             size = 0
         self.logger.log(f"Downloaded {self._display} ({size / (1024 * 1024):.1f} MB)")
 
-    def download(self, url, out_path, dlc_name=None, resume=False, expected_size=None):
+    def download(
+        self,
+        url: str,
+        out_path: str,
+        dlc_name: Optional[str] = None,
+        resume: bool = False,
+        expected_size: Optional[int] = None,
+    ) -> Tuple[bool, str]:
         self._active = True
         self._display = dlc_name or url
         self._source = url
@@ -123,7 +141,15 @@ class SmartDownloader:
         self.logger.log(f"All download attempts failed: {self._display} from {self._source}", "WARNING")
         return False, "All download attempts failed"
 
-    def _try_download_with_retry(self, url, out_path, temp_path, start_byte=0, expected_size=None, max_retries=3):
+    def _try_download_with_retry(
+        self,
+        url: str,
+        out_path: str,
+        temp_path: str,
+        start_byte: int = 0,
+        expected_size: Optional[int] = None,
+        max_retries: int = 3,
+    ) -> Tuple[bool, str]:
         for attempt in range(max_retries):
             if self._cancelled:
                 return False, "Cancelled"
@@ -143,7 +169,14 @@ class SmartDownloader:
                     return False, str(e)
         return False, "Max retries exceeded"
 
-    def _try_download(self, url, out_path, temp_path, start_byte=0, expected_size=None):
+    def _try_download(
+        self,
+        url: str,
+        out_path: str,
+        temp_path: str,
+        start_byte: int = 0,
+        expected_size: Optional[int] = None,
+    ) -> Tuple[bool, str]:
         try:
             os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
             headers = {}

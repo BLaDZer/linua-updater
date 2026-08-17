@@ -3,10 +3,10 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Set
+from typing import Any, Dict, List, Optional, Set
 
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSlot
-from PyQt6.QtGui import QFont, QFontDatabase
+from PyQt6.QtGui import QCloseEvent, QFont, QFontDatabase
 from PyQt6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from linua_updater.constants import APP_VERSION
+from linua_updater.core.database import DLCDatabase
 from linua_updater.core.detection import GameDetector
 from linua_updater.core.diagnostics import NetworkDiagnostics
 from linua_updater.core.downloader import SmartDownloader
@@ -33,6 +34,7 @@ from linua_updater.ui.dialogs import CompletionDialog, DLCSelector, SettingsDial
 from linua_updater.ui.theme import MAIN_STYLESHEET
 from linua_updater.ui.widgets import SimpleDetailWidget, SimpleProgressBar
 from linua_updater.utils.admin import AdminElevator
+from linua_updater.utils.config import ConfigManager
 from linua_updater.utils.disk_space import DiskSpaceChecker
 from linua_updater.workers.diagnostics_worker import DiagnosticsWorker
 from linua_updater.workers.install_worker import InstallWorker
@@ -40,12 +42,12 @@ from linua_updater.workers.uninstall_worker import UninstallWorker
 from linua_updater.workers.update_checker import UpdateChecker
 
 
-def _browse_default_dir(path_text):
+def _browse_default_dir(path_text: str) -> str:
     """Default directory for the folder picker: the current text when present, else the user's home dir."""
     return path_text or str(Path.home())
 
 
-def _game_placeholder(sys_platform):
+def _game_placeholder(sys_platform: str) -> str:
     """Placeholder hint for the game-folder field.
 
     ``win32`` keeps the concrete Steam-on-Windows example; every other platform
@@ -56,7 +58,7 @@ def _game_placeholder(sys_platform):
     return "The Sims 4 folder (e.g. /path/to/the-sims-4)"
 
 
-def _persistable_game_path(text):
+def _persistable_game_path(text: str) -> Optional[str]:
     """Return ``text.strip()`` when it is a valid game folder, else ``None``.
 
     A path is persistable only when ``Game/Bin/TS4_x64.exe`` exists, matching
@@ -69,7 +71,7 @@ def _persistable_game_path(text):
     return None
 
 
-def _game_folder_state(text):
+def _game_folder_state(text: str) -> bool:
     """Return whether ``text`` maps to a valid game folder via ``_persistable_game_path``.
 
     A folder is valid only when it exists and contains ``Game/Bin/TS4_x64.exe``;
@@ -79,7 +81,7 @@ def _game_folder_state(text):
     return _persistable_game_path(text) is not None
 
 
-def _startup_detect_message(saved):
+def _startup_detect_message(saved: str) -> str:
     """Startup line describing the persisted game folder: which of the three states applies.
 
     No saved path, a saved path that is not a valid game folder, and a valid
@@ -93,7 +95,7 @@ def _startup_detect_message(saved):
     return f"Using saved game folder: {path}"
 
 
-def _resolve_detected_path(text):
+def _resolve_detected_path(text: str) -> Optional[str]:
     """Return the persistable saved/current path when valid, else the scan result.
 
     The persistable check runs first so auto-detection skips the full
@@ -106,7 +108,7 @@ def _resolve_detected_path(text):
     return GameDetector.find_game()
 
 
-def _changed_valid_path(text, stored):
+def _changed_valid_path(text: str, stored: str) -> Optional[str]:
     """Return the persistable path when it is valid and differs from ``stored``, else ``None``.
 
     ``stored`` is stripped before comparing, and an empty stored value never
@@ -118,12 +120,12 @@ def _changed_valid_path(text, stored):
     return None
 
 
-def _ui_font_family():
+def _ui_font_family() -> str:
     """Cross-platform sans-serif font stack for UI text, with a generic fallback."""
     return "'Segoe UI','Noto Sans','Arial',sans-serif"
 
 
-def _install_in_progress(install_worker, install_thread):
+def _install_in_progress(install_worker: Optional[InstallWorker], install_thread: Optional[QThread]) -> bool:
     """Return ``True`` while an install worker or its thread is still alive.
 
     A new install must not start until the previous install ``QThread`` has
@@ -133,32 +135,32 @@ def _install_in_progress(install_worker, install_thread):
 
 
 class LinuaUI(QMainWindow):
-    def __init__(self, config, db):
+    def __init__(self, config: ConfigManager, db: DLCDatabase) -> None:
         super().__init__()
-        self.config = config
-        self.db = db
-        self.is_closing = False
+        self.config: ConfigManager = config
+        self.db: DLCDatabase = db
+        self.is_closing: bool = False
         self.setWindowTitle(f"Linua Updater v{APP_VERSION}")
         self.setFixedSize(650, 650)
         self.setup_ui()
         self.apply_dark_theme()
-        self.logger = ImprovedLogger(self.log_text)
+        self.logger: ImprovedLogger = ImprovedLogger(self.log_text)
         self.logger.log(self.db.source_description(), "INFO")
-        self.diagnostics = None
-        self.downloader = SmartDownloader(self.logger)
-        self.extractor = Extractor(self.logger)
-        self.install_thread = None
-        self.install_worker = None
-        self._cancel_requested = False
-        self._update_thread = None
-        self._diag_thread = None
-        self.progress_total = 0
-        self.progress_done = 0
-        self.successful_count = 0
-        self.failed_count = 0
-        self.settings = self.config.get_settings()
-        self.network = self.config.get_network()
-        self.dlc_check_timer = QTimer()
+        self.diagnostics: Optional[NetworkDiagnostics] = None
+        self.downloader: SmartDownloader = SmartDownloader(self.logger)
+        self.extractor: Extractor = Extractor(self.logger)
+        self.install_thread: Optional[QThread] = None
+        self.install_worker: Optional[InstallWorker] = None
+        self._cancel_requested: bool = False
+        self._update_thread: Optional[QThread] = None
+        self._diag_thread: Optional[QThread] = None
+        self.progress_total: int = 0
+        self.progress_done: int = 0
+        self.successful_count: int = 0
+        self.failed_count: int = 0
+        self.settings: Dict[str, Any] = self.config.get_settings()
+        self.network: Dict[str, Any] = self.config.get_network()
+        self.dlc_check_timer: QTimer = QTimer()
         self.dlc_check_timer.timeout.connect(self.update_dlc_status)
         saved = self.config.get("game_path", "")
         if saved:
@@ -170,7 +172,7 @@ class LinuaUI(QMainWindow):
         QTimer.singleShot(1000, self.update_dlc_status)
         QTimer.singleShot(600, self.check_saved_download_state)
 
-    def check_for_updates(self):
+    def check_for_updates(self) -> None:
         """Check for updates on startup"""
         self.logger.log("Checking for updates...")
         self.update_checker = UpdateChecker(
@@ -185,7 +187,7 @@ class LinuaUI(QMainWindow):
         self._update_thread.finished.connect(self._update_thread.deleteLater)
         self._update_thread.start()
 
-    def on_update_available(self, version, url):
+    def on_update_available(self, version: str, url: str) -> None:
         """Handle update notification"""
         self.logger.log(f"New version available: {version}")
         reply = QMessageBox.question(
@@ -200,7 +202,7 @@ class LinuaUI(QMainWindow):
 
             webbrowser.open(url)
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
@@ -289,10 +291,10 @@ class LinuaUI(QMainWindow):
         )
         layout.addWidget(info)
 
-    def apply_dark_theme(self):
+    def apply_dark_theme(self) -> None:
         self.setStyleSheet(MAIN_STYLESHEET)
 
-    def export_logs(self):
+    def export_logs(self) -> None:
         """Export logs to the default location and reveal it."""
         success, result = self.logger.export_logs()
         if success:
@@ -300,10 +302,10 @@ class LinuaUI(QMainWindow):
         else:
             QMessageBox.warning(self, "Export Failed", f"Failed to export logs:\n{result}")
 
-    def on_path_changed(self, text):
+    def on_path_changed(self, text: str) -> None:
         QTimer.singleShot(500, self._on_path_idle)
 
-    def _persist_valid_path(self, text):
+    def _persist_valid_path(self, text: str) -> Optional[str]:
         """Persist ``game_path`` to config when the input is a valid game folder.
 
         Returns the persisted path, or ``None`` when the input is invalid and
@@ -314,14 +316,14 @@ class LinuaUI(QMainWindow):
             self.config.set("game_path", path)
         return path
 
-    def _on_path_idle(self):
+    def _on_path_idle(self) -> None:
         path = _changed_valid_path(self.path_input.text(), self.config.get("game_path", ""))
         if path:
             self.config.set("game_path", path)
             self.logger.log(f"Game path saved: {path}")
         self.update_dlc_status()
 
-    def update_dlc_status(self):
+    def update_dlc_status(self) -> None:
         if self.is_closing or not self.isVisible():
             return
         path = _persistable_game_path(self.path_input.text())
@@ -329,6 +331,7 @@ class LinuaUI(QMainWindow):
             self.dlc_status.setText("Select valid game folder")
             self.update_btn.setEnabled(False)
             return
+        assert path is not None
         installed = self.detect_installed(path)
         total_dlc = len(self.db.all())
         available = [k for k in self.db.all().keys() if k.upper() not in installed]
@@ -341,7 +344,7 @@ class LinuaUI(QMainWindow):
             self.update_btn.setEnabled(True)
             self.update_btn.setText(f"Update ({len(available)} available)")
 
-    def run_diagnostics(self):
+    def run_diagnostics(self) -> None:
         if self.is_closing:
             return
 
@@ -377,7 +380,7 @@ class LinuaUI(QMainWindow):
         self._diag_thread.finished.connect(self._diag_thread.deleteLater)
         self._diag_thread.start()
 
-    def _apply_diagnostics(self, tool):
+    def _apply_diagnostics(self, tool: NetworkDiagnostics) -> None:
         self.diagnostics = tool
         self.downloader = SmartDownloader(self.logger, self.diagnostics, mirrors=self.network["mirrors"])
         cache_file = AppPaths.DIAG_CACHE_FILE
@@ -402,7 +405,7 @@ class LinuaUI(QMainWindow):
         else:
             self.logger.log("Network: blocked. Install Cloudflare WARP: https://1.1.1.1/", "WARNING")
 
-    def show_settings(self):
+    def show_settings(self) -> None:
         dlg = SettingsDialog(self, db=self.db, logger=self.logger)
         dlg.thread_spin.setValue(self.settings.get("max_threads", 3))
         dlg.proxy_check.setChecked(self.settings.get("use_proxy", True))
@@ -414,7 +417,7 @@ class LinuaUI(QMainWindow):
             self.config.set("settings", self.settings)
             self.logger.log("Settings saved")
 
-    def browse_folder(self):
+    def browse_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(
             self, "Select The Sims 4 Folder", _browse_default_dir(self.path_input.text())
         )
@@ -423,7 +426,7 @@ class LinuaUI(QMainWindow):
             self._persist_valid_path(folder)
             self.logger.log(f"Selected: {folder}")
 
-    def auto_detect(self):
+    def auto_detect(self) -> None:
         if self.is_closing:
             return
         path = _persistable_game_path(self.path_input.text())
@@ -438,13 +441,13 @@ class LinuaUI(QMainWindow):
         else:
             self.logger.log("Game not found. Please select manually", "WARNING")
 
-    def _startup_detect(self):
+    def _startup_detect(self) -> None:
         if self.is_closing:
             return
         self.logger.log(_startup_detect_message(self.config.get("game_path", "")))
         self.update_dlc_status()
 
-    def detect_installed(self, game_path):
+    def detect_installed(self, game_path: str) -> Set[str]:
         installed: Set[str] = set()
         if not os.path.exists(game_path):
             return installed
@@ -464,7 +467,7 @@ class LinuaUI(QMainWindow):
                 self.logger.log(f"Error scanning DLC: {e}", "ERROR")
         return installed
 
-    def on_update(self):
+    def on_update(self) -> None:
         if self.is_closing:
             return
         path = self.path_input.text().strip()
@@ -545,7 +548,7 @@ class LinuaUI(QMainWindow):
 
         self.start_parallel_install(selected, path)
 
-    def start_parallel_install(self, selected, path):
+    def start_parallel_install(self, selected: List[str], path: str) -> None:
         self.logger.log(f"Installing {len(selected)} DLC (using {self.settings.get('max_threads', 3)} threads)")
         if _install_in_progress(self.install_worker, self.install_thread):
             self.logger.log("Install already in progress", "WARNING")
@@ -581,20 +584,20 @@ class LinuaUI(QMainWindow):
         self.install_thread.start()
 
     @pyqtSlot(str, str)
-    def _on_worker_log(self, text, level="INFO"):
+    def _on_worker_log(self, text: str, level: str = "INFO") -> None:
         self.logger.log(text, level)
 
     @pyqtSlot(str, float, int, int)
-    def on_progress_updated(self, dlc_id, progress, downloaded, total):
+    def on_progress_updated(self, dlc_id: str, progress: float, downloaded: int, total: int) -> None:
         if total > 0:
             self.download_detail.update_progress(dlc_id, progress, downloaded, total)
 
     @pyqtSlot(float)
-    def on_overall_progress_updated(self, progress):
+    def on_overall_progress_updated(self, progress: float) -> None:
         self.download_progress.setValue(int(progress))
 
     @pyqtSlot(str, bool, str)
-    def on_install_result(self, dlc_id, success, message):
+    def on_install_result(self, dlc_id: str, success: bool, message: str) -> None:
         self.progress_done += 1
         if success:
             self.successful_count += 1
@@ -614,11 +617,11 @@ class LinuaUI(QMainWindow):
             )
 
     @pyqtSlot()
-    def on_install_started(self):
+    def on_install_started(self) -> None:
         self.logger.log("Installation started")
 
     @pyqtSlot(dict)
-    def on_stats_ready(self, stats):
+    def on_stats_ready(self, stats: Dict[str, Any]) -> None:
         self.logger.log("")
         self.logger.log("=== STATISTICS ===")
         self.logger.log(f"Total: {stats['total_dlc']} DLC")
@@ -639,7 +642,7 @@ class LinuaUI(QMainWindow):
         self.logger.log("==================")
 
     @pyqtSlot()
-    def on_install_finished(self):
+    def on_install_finished(self) -> None:
         if self.install_thread:
             self.install_thread.quit()
             self.install_thread.wait()
@@ -669,7 +672,7 @@ class LinuaUI(QMainWindow):
         except Exception as e:
             self.logger.log(f"Error finishing install: {e!s}", "ERROR")
 
-    def reset_ui_after_install(self):
+    def reset_ui_after_install(self) -> None:
         if self.is_closing:
             return
         self.download_progress.setVisible(False)
@@ -692,7 +695,7 @@ class LinuaUI(QMainWindow):
         self.settings_btn.setEnabled(True)
         self.export_logs_btn.setEnabled(True)
 
-    def on_cancel(self):
+    def on_cancel(self) -> None:
         if self.install_worker:
             self.logger.log("Cancelling installation...", "WARNING")
             self.install_worker.cancel()
@@ -700,7 +703,7 @@ class LinuaUI(QMainWindow):
             self.cancel_btn.setText("Cancelling...")
             self.cancel_btn.setEnabled(False)
 
-    def on_uninstall(self):
+    def on_uninstall(self) -> None:
         """Handle uninstall button click"""
         path = self.path_input.text().strip()
         if not path or not os.path.exists(path):
@@ -722,7 +725,7 @@ class LinuaUI(QMainWindow):
 
         self.start_uninstall(selected, path)
 
-    def start_uninstall(self, dlc_ids, path):
+    def start_uninstall(self, dlc_ids: List[str], path: str) -> None:
         """Start uninstalling selected DLC"""
         self.logger.log(f"Uninstalling {len(dlc_ids)} DLC...")
 
@@ -744,14 +747,14 @@ class LinuaUI(QMainWindow):
         self.uninstall_thread.started.connect(self.uninstall_worker.run)
         self.uninstall_thread.start()
 
-    def on_dlc_removed(self, dlc_id, success, message):
+    def on_dlc_removed(self, dlc_id: str, success: bool, message: str) -> None:
         """Handle single DLC removal result"""
         if success:
             self.logger.log(f"{dlc_id}: Removed", "INFO")
         else:
             self.logger.log(f"{dlc_id}: Failed - {message}", "ERROR")
 
-    def on_uninstall_finished(self):
+    def on_uninstall_finished(self) -> None:
         """Handle uninstall completion"""
         self.logger.log("Uninstall complete!")
         self.download_progress.setVisible(False)
@@ -765,7 +768,7 @@ class LinuaUI(QMainWindow):
             self.uninstall_thread.quit()
             self.uninstall_thread.wait()
 
-    def on_pause(self):
+    def on_pause(self) -> None:
         """Handle pause button click"""
         if not self.install_worker:
             return
@@ -776,7 +779,7 @@ class LinuaUI(QMainWindow):
         self.cancel_btn.setEnabled(True)
         self.logger.log("Installation paused", "WARNING")
 
-    def on_resume(self):
+    def on_resume(self) -> None:
         """Handle resume button click"""
         if not self.install_worker:
             return
@@ -786,7 +789,7 @@ class LinuaUI(QMainWindow):
         self.pause_btn.clicked.connect(self.on_pause)
         self.logger.log("Resuming installation...", "INFO")
 
-    def check_saved_download_state(self):
+    def check_saved_download_state(self) -> None:
         if self.is_closing or self.install_worker:
             return
         state = DownloadState().load_state()
@@ -819,7 +822,7 @@ class LinuaUI(QMainWindow):
         else:
             DownloadState().clear_state()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: Optional[QCloseEvent]) -> None:
         self.is_closing = True
         self.logger.log("Shutting down...")
         self.dlc_check_timer.stop()
@@ -834,4 +837,5 @@ class LinuaUI(QMainWindow):
                 child.deleteLater()
             except:
                 pass
+        assert event is not None
         event.accept()

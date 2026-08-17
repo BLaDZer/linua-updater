@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import List
 
 WIN32_PROTECTED_PREFIXES = [
     r"c:\program files",
@@ -20,7 +21,7 @@ POSIX_PROTECTED_PREFIXES = ["/usr", "/opt", "/etc", "/var"]
 
 class AdminElevator:
     @staticmethod
-    def is_admin():
+    def is_admin() -> bool:
         try:
             if sys.platform == "win32":
                 return bool(ctypes.windll.shell32.IsUserAnAdmin())
@@ -29,7 +30,7 @@ class AdminElevator:
             return False
 
     @staticmethod
-    def _matches_win32_protected(path):
+    def _matches_win32_protected(path: str) -> bool:
         normalized = ntpath.normcase(str(path))
         for prefix in WIN32_PROTECTED_PREFIXES:
             if normalized == prefix or normalized.startswith(prefix + "\\"):
@@ -37,7 +38,7 @@ class AdminElevator:
         return False
 
     @staticmethod
-    def requires_admin(path):
+    def requires_admin(path: str) -> bool:
         if not path:
             return False
         path_str = str(path)
@@ -62,13 +63,13 @@ class AdminElevator:
                 pass
 
     @staticmethod
-    def _launch_args():
+    def _launch_args() -> List[str]:
         if getattr(sys, "frozen", False):
             return [sys.executable] + list(sys.argv[1:])
         return [sys.executable, sys.argv[0]] + list(sys.argv[1:])
 
     @staticmethod
-    def elevate():
+    def elevate() -> bool:
         try:
             if AdminElevator.is_admin():
                 return True

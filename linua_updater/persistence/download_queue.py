@@ -1,46 +1,48 @@
 import json
 from datetime import datetime
+from typing import Any, Dict
 
 from linua_updater.paths import AppPaths
 
 
 class DownloadQueue:
-    def __init__(self):
+    def __init__(self) -> None:
         AppPaths.ensure()
         self.queue_file = AppPaths.DOWNLOAD_QUEUE_FILE
         self.queue = self._load()
 
-    def _load(self):
+    def _load(self) -> Dict[str, Any]:
         if self.queue_file.exists():
             try:
                 with open(self.queue_file, encoding="utf-8") as f:
-                    return json.load(f)
+                    payload = json.load(f)
+                return payload if isinstance(payload, dict) else {}
             except:
                 return {}
         return {}
 
-    def add(self, dlc_id, url, progress=0):
+    def add(self, dlc_id: str, url: str, progress: float = 0) -> None:
         self.queue[dlc_id] = {"url": url, "progress": progress, "added": datetime.now().isoformat()}
         self._save()
 
-    def update_progress(self, dlc_id, progress):
+    def update_progress(self, dlc_id: str, progress: float) -> None:
         if dlc_id in self.queue:
             self.queue[dlc_id]["progress"] = progress
             self._save()
 
-    def remove(self, dlc_id):
+    def remove(self, dlc_id: str) -> None:
         if dlc_id in self.queue:
             del self.queue[dlc_id]
             self._save()
 
-    def get_incomplete(self):
+    def get_incomplete(self) -> Dict[str, Any]:
         return {k: v for k, v in self.queue.items() if v.get("progress", 0) < 100}
 
-    def clear_all(self):
+    def clear_all(self) -> None:
         self.queue = {}
         self._save()
 
-    def _save(self):
+    def _save(self) -> None:
         try:
             with open(self.queue_file, "w", encoding="utf-8") as f:
                 json.dump(self.queue, f, indent=2, ensure_ascii=False)

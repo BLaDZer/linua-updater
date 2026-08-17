@@ -1,7 +1,10 @@
 import os
 import shutil
+from typing import List, Tuple
 
 from PyQt6.QtCore import QObject, pyqtSignal
+
+from linua_updater.logging_util import ImprovedLogger
 
 
 class UninstallWorker(QObject):
@@ -11,17 +14,17 @@ class UninstallWorker(QObject):
     dlc_removed = pyqtSignal(str, bool, str)  # dlc_id, success, message
     finished = pyqtSignal()
 
-    def __init__(self, dlc_ids, game_path, logger):
+    def __init__(self, dlc_ids: List[str], game_path: str, logger: ImprovedLogger) -> None:
         super().__init__()
         self.dlc_ids = dlc_ids
         self.game_path = game_path
         self.logger = logger
         self._cancelled = False
 
-    def cancel(self):
+    def cancel(self) -> None:
         self._cancelled = True
 
-    def run(self):
+    def run(self) -> None:
         """Uninstall selected DLC"""
         total = len(self.dlc_ids)
         for i, dlc_id in enumerate(self.dlc_ids):
@@ -32,7 +35,7 @@ class UninstallWorker(QObject):
             self.dlc_removed.emit(dlc_id, success, message)
         self.finished.emit()
 
-    def uninstall_dlc(self, dlc_id):
+    def uninstall_dlc(self, dlc_id: str) -> Tuple[bool, str]:
         """Uninstall a single DLC by deleting its folder"""
         try:
             dlc_path = os.path.join(self.game_path, dlc_id)

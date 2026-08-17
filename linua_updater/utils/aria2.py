@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+from typing import Any, List, Optional
 
 
 class Aria2Finder:
@@ -18,15 +19,15 @@ class Aria2Finder:
         "/snap/bin/aria2c",
     ]
 
-    def __init__(self, logger):
+    def __init__(self, logger: Any) -> None:
         self.logger = logger
 
-    def _executable_names(self):
+    def _executable_names(self) -> List[str]:
         if sys.platform == "win32":
             return ["aria2c.exe"]
         return ["aria2c"]
 
-    def find(self):
+    def find(self) -> Optional[str]:
         meipass = getattr(sys, "_MEIPASS", None)
         if meipass:
             for name in self._executable_names():

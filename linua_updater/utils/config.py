@@ -1,12 +1,12 @@
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional, cast
 
 from linua_updater.constants import DEFAULT_MIRRORS, DEFAULT_PROXY_PORTS, DEFAULT_REGION_API, DEFAULT_VERSION_CHECK_URL
 from linua_updater.paths import AppPaths
 
 
 class ConfigManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.path = AppPaths.CONFIG_FILE
         self.data: Dict[str, Any] = {}
         AppPaths.ensure()
@@ -34,17 +34,17 @@ class ConfigManager:
                 }
                 self.save()
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return self.data.get(key, default)
 
-    def set(self, key, value):
+    def set(self, key: str, value: Any) -> None:
         self.data[key] = value
         self.save()
 
-    def get_settings(self):
-        return self.data.get("settings", {})
+    def get_settings(self) -> Dict[str, Any]:
+        return cast(Dict[str, Any], self.data.get("settings", {}))
 
-    def get_network(self):
+    def get_network(self) -> Dict[str, Any]:
         defaults = {
             "version_check_url": DEFAULT_VERSION_CHECK_URL,
             "region_api": DEFAULT_REGION_API,
@@ -58,7 +58,7 @@ class ConfigManager:
                 merged[key] = value
         return merged
 
-    def save(self):
+    def save(self) -> None:
         try:
             with open(self.path, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, indent=4, ensure_ascii=False)

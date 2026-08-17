@@ -1,10 +1,12 @@
 import json
 import time
+from typing import Any, Dict, Optional
 
 import requests
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from linua_updater.constants import APP_VERSION, DEFAULT_VERSION_CHECK_URL
+from linua_updater.logging_util import ImprovedLogger
 from linua_updater.paths import AppPaths
 
 
@@ -13,23 +15,23 @@ class UpdateChecker(QObject):
     no_update = pyqtSignal()
     check_failed = pyqtSignal(str)
 
-    def __init__(self, logger=None, version_url=None):
+    def __init__(self, logger: Optional[ImprovedLogger] = None, version_url: Optional[str] = None) -> None:
         super().__init__()
         self.logger = logger
         self.version_url = version_url or DEFAULT_VERSION_CHECK_URL
         self.cache_file = AppPaths.UPDATE_CACHE_FILE
         self.cache_duration = AppPaths.UPDATE_CACHE_DURATION
 
-    def log(self, text, level="INFO"):
+    def log(self, text: str, level: str = "INFO") -> None:
         if self.logger:
             self.logger.log(text, level)
 
-    def _load_cache(self):
+    def _load_cache(self) -> Optional[Dict[str, Any]]:
         """Load cached update check result"""
         try:
             if self.cache_file.exists():
                 with open(self.cache_file) as f:
-                    cache = json.load(f)
+                    cache: Dict[str, Any] = json.load(f)
                     cached_time = cache.get("timestamp", 0)
                     current_time = time.time()
 
@@ -40,7 +42,7 @@ class UpdateChecker(QObject):
             pass
         return None
 
-    def _save_cache(self, latest_version, download_url):
+    def _save_cache(self, latest_version: str, download_url: str) -> None:
         """Save update check result to cache"""
         try:
             AppPaths.ensure()
@@ -50,7 +52,7 @@ class UpdateChecker(QObject):
         except Exception as e:
             self.log(f"Failed to save update cache: {e}", "DEBUG")
 
-    def check_for_updates(self):
+    def check_for_updates(self) -> None:
         """Check for updates using version.json (no API rate limits)"""
         try:
             # Try to use cached result first
@@ -94,7 +96,7 @@ class UpdateChecker(QObject):
         except Exception as e:
             self.check_failed.emit(str(e))
 
-    def _compare_versions(self, latest, current):
+    def _compare_versions(self, latest: str, current: str) -> bool:
         """Compare version strings (returns True if latest > current)"""
         try:
             latest_parts = [int(x) for x in latest.split(".")]

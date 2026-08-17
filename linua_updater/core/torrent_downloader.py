@@ -3,13 +3,15 @@ import re
 import subprocess
 import threading
 import time
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from linua_updater.logging_util import ImprovedLogger
 from linua_updater.utils.aria2 import Aria2Finder
 
 
-def _popen_kwargs():
+def _popen_kwargs() -> Dict[str, Any]:
     """Popen kwargs hiding the console window on Windows. No-op elsewhere."""
-    kwargs = {}
+    kwargs: Dict[str, Any] = {}
     flag = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     if flag:
         kwargs["creationflags"] = flag
@@ -17,25 +19,25 @@ def _popen_kwargs():
 
 
 class TorrentDownloader:
-    def __init__(self, logger, aria2_path=None, cleanup=True):
+    def __init__(self, logger: ImprovedLogger, aria2_path: Optional[str] = None, cleanup: bool = True) -> None:
         self.logger = logger
         self.cleanup = cleanup
         self._aria2_path = aria2_path or Aria2Finder(logger).find()
         self._cancelled = False
         self._paused = False
         self._active = False
-        self._display = None
-        self._source = None
-        self._progress_callback = None
-        self._process = None
-        self._command = None
-        self._out_dir = None
+        self._display: Optional[str] = None
+        self._source: Optional[str] = None
+        self._progress_callback: Optional[Callable[[float, float, float], None]] = None
+        self._process: Optional[subprocess.Popen[str]] = None
+        self._command: Optional[List[str]] = None
+        self._out_dir: Optional[str] = None
         self._lock = threading.Lock()
 
-    def set_progress_callback(self, callback):
+    def set_progress_callback(self, callback: Optional[Callable[[float, float, float], None]]) -> None:
         self._progress_callback = callback
 
-    def cancel(self):
+    def cancel(self) -> None:
         self._cancelled = True
         with self._lock:
             if self._process and self._process.poll() is None:
@@ -55,7 +57,7 @@ class TorrentDownloader:
                 except Exception:
                     pass
 
-    def pause(self):
+    def pause(self) -> None:
         with self._lock:
             self._paused = True
             if self._process and self._process.poll() is None:
@@ -66,18 +68,19 @@ class TorrentDownloader:
         if self._active:
             self.logger.log(f"Paused torrent download: {self._display}", "WARNING")
 
-    def resume(self):
+    def resume(self) -> None:
         with self._lock:
             self._paused = False
         if self._active:
             self.logger.log(f"Resumed torrent download: {self._display}")
 
-    def _wait_for_resume(self):
+    def _wait_for_resume(self) -> None:
         """Block until resume() or cancel(). Yields the GIL via sleep."""
         while self._paused and not self._cancelled:
             time.sleep(0.1)
 
-    def _build_command(self, magnet, out_dir):
+    def _build_command(self, magnet: str, out_dir: str) -> List[str]:
+        assert self._aria2_path is not None  # guaranteed by download() before calling
         cmd = [
             self._aria2_path,
             magnet,
@@ -93,7 +96,7 @@ class TorrentDownloader:
         return cmd
 
     @staticmethod
-    def _parse_size(s):
+    def _parse_size(s: str) -> float:
         s = s.strip()
         multipliers = {
             "KiB": 1024,
@@ -113,7 +116,7 @@ class TorrentDownloader:
             return 0
 
     @staticmethod
-    def _parse_summary(line):
+    def _parse_summary(line: str) -> Tuple[Optional[float], float, float]:
         m = re.search(r"\[(\S+?)\s+(\S+?)/(\S+?)\((\d+)%\)", line)
         if not m:
             return None, 0, 0
@@ -121,7 +124,13 @@ class TorrentDownloader:
         downloaded = TorrentDownloader._parse_size(m.group(2))
         return progress, downloaded, 0
 
-    def download(self, magnet, out_dir, dlc_name=None, expected_size=None):
+    def download(
+        self,
+        magnet: str,
+        out_dir: str,
+        dlc_name: Optional[str] = None,
+        expected_size: Optional[int] = None,
+    ) -> Tuple[bool, Union[str, List[str]]]:
         self._active = True
         self._display = dlc_name or magnet
         self._source = magnet
@@ -139,8 +148,8 @@ class TorrentDownloader:
             self._out_dir = out_dir
             os.makedirs(out_dir, exist_ok=True)
             cmd = self._build_command(magnet, out_dir)
-            total_bytes = 0
-            last_progress = 0
+            total_bytes: float = 0
+            last_progress: float = 0
 
             while True:  # outer restart loop — pause terminates, resume restarts
                 if self._cancelled:  # never re-launch aria2c after a cancel (also after resume/pause)
@@ -174,7 +183,9 @@ class TorrentDownloader:
                             break
                         parsed = self._parse_summary(line)
                         if parsed and parsed[0] is not None:
-                            progress, downloaded, total = parsed
+                            progress: float = parsed[0]
+                            downloaded: float = parsed[1]
+                            total: float = parsed[2]
                             if total == 0 and expected_size:
                                 total = expected_size
                             total_bytes = max(total_bytes, downloaded)

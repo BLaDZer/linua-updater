@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Set
+
 from PyQt6.QtCore import Qt, QThread, pyqtSlot
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -16,11 +18,13 @@ from PyQt6.QtWidgets import (
 )
 
 from linua_updater.core.database import DLCDatabase
+from linua_updater.core.models import DLCInfo
+from linua_updater.logging_util import ImprovedLogger
 from linua_updater.workers.database_refresh_worker import DatabaseRefreshWorker
 
 
 class CompletionDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Installation Complete")
         self.setMinimumSize(450, 220)
@@ -28,7 +32,7 @@ class CompletionDialog(QDialog):
         self.setup_ui()
         self.apply_theme()
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(30, 30, 30, 30)
@@ -75,23 +79,28 @@ class CompletionDialog(QDialog):
         button_layout.addStretch()
         layout.addLayout(button_layout)
 
-    def apply_theme(self):
+    def apply_theme(self) -> None:
         self.setStyleSheet("QDialog { background-color: #1e1e1e; }")
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, parent=None, db=None, logger=None):
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        db: Optional[DLCDatabase] = None,
+        logger: Optional[ImprovedLogger] = None,
+    ) -> None:
         super().__init__(parent)
-        self.db = db
-        self.logger = logger
-        self._db_reset_thread = None
-        self._db_reset_worker = None
+        self.db: Optional[DLCDatabase] = db
+        self.logger: Optional[ImprovedLogger] = logger
+        self._db_reset_thread: Optional[QThread] = None
+        self._db_reset_worker: Optional[DatabaseRefreshWorker] = None
         self.setWindowTitle("Settings")
         self.setFixedSize(420, 440)
         self.setup_ui()
         self.apply_dark_theme()
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         thread_group = QGroupBox("Parallel Download Settings")
         thread_layout = QGridLayout()
@@ -136,8 +145,10 @@ class SettingsDialog(QDialog):
         buttons.addWidget(cancel_btn)
         layout.addLayout(buttons)
 
-    def reset_database_cache(self):
+    def reset_database_cache(self) -> None:
         if self._db_reset_thread:
+            return
+        if self.db is None:
             return
         if self.logger:
             self.logger.log("Database cache reset requested...", "INFO")
@@ -151,10 +162,10 @@ class SettingsDialog(QDialog):
         self._db_reset_thread.start()
 
     @pyqtSlot(bool)
-    def _on_db_reset_done(self, ok):
+    def _on_db_reset_done(self, ok: bool) -> None:
         self.reset_db_btn.setText("Reset database cache")
         self.reset_db_btn.setEnabled(True)
-        if self.logger:
+        if self.logger and self.db is not None:
             if ok:
                 self.logger.log(self.db.source_description(), "INFO")
             else:
@@ -168,12 +179,12 @@ class SettingsDialog(QDialog):
             self._db_reset_worker.deleteLater()
             self._db_reset_worker = None
 
-    def apply_dark_theme(self):
+    def apply_dark_theme(self) -> None:
         self.setStyleSheet(
             "QDialog{background-color:#1e1e1e;}QLabel{color:white;}QGroupBox{color:white;border:1px solid #555;border-radius:5px;margin-top:10px;padding-top:10px;}QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 5px 0 5px;}QSpinBox,QCheckBox{color:white;background-color:#2a2a2a;}"
         )
 
-    def get_settings(self):
+    def get_settings(self) -> Dict[str, Any]:
         return {
             "max_threads": self.thread_spin.value(),
             "use_proxy": self.proxy_check.isChecked(),
@@ -185,16 +196,16 @@ class SettingsDialog(QDialog):
 class SpaceWarningDialog(QDialog):
     """Warning dialog for insufficient disk space"""
 
-    def __init__(self, parent=None, space_info=None):
+    def __init__(self, parent: Optional[QWidget] = None, space_info: Optional[Dict[str, Any]] = None) -> None:
         super().__init__(parent)
-        self.space_info = space_info or {}
+        self.space_info: Dict[str, Any] = space_info or {}
         self.setWindowTitle("Insufficient Disk Space")
         self.setFixedSize(450, 250)
         self.setModal(True)
         self.setup_ui()
         self.apply_theme()
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(30, 30, 30, 30)
@@ -254,7 +265,7 @@ class SpaceWarningDialog(QDialog):
         button_layout.addWidget(cancel_btn)
         layout.addLayout(button_layout)
 
-    def apply_theme(self):
+    def apply_theme(self) -> None:
         self.setStyleSheet("""
             QDialog { background-color: #1e1e1e; }
             QPushButton {
@@ -272,15 +283,15 @@ class SpaceWarningDialog(QDialog):
 
 
 class DLCSelector(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Select DLC")
         self.setFixedSize(600, 700)
         self.apply_dark_theme()
-        self.cbs = {}
+        self.cbs: Dict[str, QCheckBox] = {}
         self.setup_ui()
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         layout = QVBoxLayout(self)
 
         self.info = QLabel("Select DLC to install.\nAlready installed DLC are hidden.")
@@ -317,19 +328,19 @@ class DLCSelector(QDialog):
 
         self.check_all.stateChanged.connect(self.update_install_button)
 
-    def apply_dark_theme(self):
+    def apply_dark_theme(self) -> None:
         self.setStyleSheet(
             "QDialog{background-color:#1e1e1e;}QLabel{color:white;padding:5px;}QLineEdit{background-color:#0a0a0a;color:white;border:1px solid #444;padding:8px;border-radius:4px;}QCheckBox{color:white;background-color:#2a2a2a;padding:8px;border-radius:3px;margin:2px;}QCheckBox::indicator{width:18px;height:18px;}QCheckBox::indicator:unchecked{border:2px solid #555;background-color:#333;}QCheckBox::indicator:checked{border:2px solid #0078d7;background-color:#0078d7;}QCheckBox:hover{background-color:#333;}QPushButton{background-color:#333;color:white;border:1px solid #555;padding:10px 20px;border-radius:4px;font-weight:bold;}QPushButton:hover{background-color:#444;}QPushButton:pressed{background-color:#222;}"
         )
 
-    def toggle_all(self, state):
+    def toggle_all(self, state: Qt.CheckState) -> None:
         checked = state == Qt.CheckState.Checked
         for _dlc_id, cb in self.cbs.items():
             if cb.isVisible() and cb.isEnabled():
                 cb.setChecked(checked)
         self.update_install_button()
 
-    def populate(self, db, installed):
+    def populate(self, db: Dict[str, DLCInfo], installed: Set[str]) -> None:
         for i in reversed(range(self.layout_c.count())):
             item = self.layout_c.itemAt(i)
             if item is not None:
@@ -372,7 +383,7 @@ class DLCSelector(QDialog):
         self.layout_c.addStretch()
         self.update_install_button()
 
-    def update_install_button(self):
+    def update_install_button(self) -> None:
         selected = len([cb for cb in self.cbs.values() if cb.isChecked() and cb.isEnabled()])
         if selected > 0:
             self.install_btn.setText(f"Install Selected ({selected})")
@@ -381,24 +392,29 @@ class DLCSelector(QDialog):
             self.install_btn.setText("Install Selected (0)")
             self.install_btn.setEnabled(False)
 
-    def get(self):
+    def get(self) -> List[str]:
         return [dlc for dlc, cb in self.cbs.items() if cb.isChecked() and cb.isEnabled()]
 
 
 class UninstallDialog(QDialog):
     """DLC Uninstaller in Linua style - dark theme, clean UI"""
 
-    def __init__(self, parent=None, game_path="", installed_dlc=None):
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        game_path: str = "",
+        installed_dlc: Optional[List[str]] = None,
+    ) -> None:
         super().__init__(parent)
-        self.game_path = game_path
-        self.installed_dlc = installed_dlc or []
+        self.game_path: str = game_path
+        self.installed_dlc: List[str] = installed_dlc or []
         self.setWindowTitle("Uninstall DLC")
         self.setFixedSize(600, 700)
         self.apply_dark_theme()
-        self.cbs = {}
+        self.cbs: Dict[str, QCheckBox] = {}
         self.setup_ui()
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         # Info label
         self.info = QLabel(f"Select DLC to uninstall from:\n{self.game_path}")
@@ -460,7 +476,7 @@ class UninstallDialog(QDialog):
         layout.addLayout(bottom)
         self.check_all.stateChanged.connect(self.update_uninstall_button)
 
-    def apply_dark_theme(self):
+    def apply_dark_theme(self) -> None:
         self.setStyleSheet("""
             QDialog{background-color:#1e1e1e;}
             QLabel{color:white;padding:5px;}
@@ -474,7 +490,7 @@ class UninstallDialog(QDialog):
             QPushButton:pressed{background-color:#222;}
         """)
 
-    def populate_dlc(self):
+    def populate_dlc(self) -> None:
         """Populate list with installed DLC"""
         if not self.installed_dlc:
             no_dlc = QLabel("No DLC installed!")
@@ -494,12 +510,12 @@ class UninstallDialog(QDialog):
             self.cbs[dlc_id] = cb
         self.layout_c.addStretch()
 
-    def toggle_all(self, state):
+    def toggle_all(self, state: Qt.CheckState) -> None:
         checked = state == Qt.CheckState.Checked
         for _dlc_id, cb in self.cbs.items():
             cb.setChecked(checked)
 
-    def update_uninstall_button(self):
+    def update_uninstall_button(self) -> None:
         selected = len([cb for cb in self.cbs.values() if cb.isChecked()])
         if selected > 0:
             self.uninstall_btn.setText(f"Uninstall Selected ({selected})")
@@ -508,7 +524,7 @@ class UninstallDialog(QDialog):
             self.uninstall_btn.setText("Uninstall Selected (0)")
             self.uninstall_btn.setEnabled(False)
 
-    def confirm_uninstall(self):
+    def confirm_uninstall(self) -> None:
         """Show confirmation dialog before uninstalling"""
         selected = self.get_selected()
         if not selected:
@@ -526,6 +542,6 @@ class UninstallDialog(QDialog):
         if reply == QMessageBox.StandardButton.Yes:
             self.accept()
 
-    def get_selected(self):
+    def get_selected(self) -> List[str]:
         """Get list of selected DLC IDs"""
         return [dlc_id for dlc_id, cb in self.cbs.items() if cb.isChecked()]

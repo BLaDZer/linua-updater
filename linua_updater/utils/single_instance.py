@@ -1,13 +1,14 @@
 import socket
+from typing import Optional
 
 
 class SingleInstanceLock:
-    def __init__(self, port=12345):
+    def __init__(self, port: int = 12345) -> None:
         self.port = port
-        self.socket = None
+        self.socket: Optional[socket.socket] = None
         self.is_locked = False
 
-    def acquire(self):
+    def acquire(self) -> bool:
         for port in range(self.port, self.port + 10):
             sock = None
             try:
@@ -25,13 +26,13 @@ class SingleInstanceLock:
                 continue
         return False
 
-    def release(self):
+    def release(self) -> None:
         if self.socket:
             self.socket.close()
             self.is_locked = False
 
     @staticmethod
-    def is_already_running(port=12345):
+    def is_already_running(port: int = 12345) -> bool:
         for test_port in range(port, port + 10):
             try:
                 test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

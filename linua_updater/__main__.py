@@ -24,7 +24,7 @@ from linua_updater.utils.config import ConfigManager
 from linua_updater.utils.single_instance import SingleInstanceLock
 
 
-def main():
+def main() -> None:
     if SingleInstanceLock.is_already_running():
         QMessageBox.critical(
             None, "Already Running", "Linua Updater is already running.\nCheck your system tray / notification area."
