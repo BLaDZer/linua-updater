@@ -4,8 +4,10 @@ import subprocess
 import zipfile
 from typing import Optional, Tuple
 
+from linua_updater.constants import RESULT_OK
 from linua_updater.logging_util import ImprovedLogger
 
+EXTRACT_7Z_TIMEOUT_SEC = 300
 
 class Extractor:
     def __init__(self, logger: Optional[ImprovedLogger]) -> None:
@@ -41,7 +43,7 @@ class Extractor:
                         os.makedirs(os.path.dirname(target), exist_ok=True)
                         with z.open(member) as src, open(target, "wb") as dst:
                             shutil.copyfileobj(src, dst)
-            return True, "OK"
+            return True, RESULT_OK
         except zipfile.BadZipFile:
             return False, "Invalid or corrupted ZIP file"
         except Exception as e:
@@ -60,10 +62,10 @@ class Extractor:
                 check=True,
                 capture_output=True,
                 text=True,
-                timeout=300,
+                timeout=EXTRACT_7Z_TIMEOUT_SEC,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-            return True, "OK"
+            return True, RESULT_OK
         except subprocess.CalledProcessError as e:
             return False, f"7z error: {e.stderr}"
         except subprocess.TimeoutExpired:

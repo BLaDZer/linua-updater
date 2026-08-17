@@ -6,6 +6,7 @@ import types
 
 import pytest
 
+from linua_updater.constants import MB
 from linua_updater.core.torrent_downloader import TorrentDownloader, _popen_kwargs
 
 
@@ -97,7 +98,7 @@ def test_parse_summary():
     line = "[#hash123 12.3MiB/123.4MiB(10%) CN:2 DL:1.2MiB]"
     progress, downloaded, total = TorrentDownloader._parse_summary(line)
     assert progress == 10.0
-    assert downloaded == pytest.approx(12.3 * 1024 * 1024)
+    assert downloaded == pytest.approx(12.3 * MB)
     assert total == 0
 
 
@@ -105,7 +106,7 @@ def test_parse_summary_100_percent():
     line = "[#hash123 100MiB/100MiB(100%) CN:2 DL:1.0MiB]"
     progress, downloaded, total = TorrentDownloader._parse_summary(line)
     assert progress == 100.0
-    assert downloaded == pytest.approx(100 * 1024 * 1024)
+    assert downloaded == pytest.approx(100 * MB)
 
 
 def test_download_success_cleans_artifacts(tmp_path, monkeypatch):
@@ -117,7 +118,7 @@ def test_download_success_cleans_artifacts(tmp_path, monkeypatch):
     ))
     out_dir = str(tmp_path / "out")
     dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
-    ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=10 * 1024 * 1024)
+    ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=10 * MB)
     assert ok is True
     assert isinstance(result, list)
 
@@ -214,7 +215,7 @@ def test_download_progress_callback(tmp_path, monkeypatch):
     out_dir = str(tmp_path / "out")
     dl = TorrentDownloader(FakeLogger(), aria2_path=str(aria2c), cleanup=True)
     dl.set_progress_callback(cb)
-    ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * 1024 * 1024)
+    ok, result = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * MB)
     assert ok is True
     assert len(events) >= 2
 
@@ -296,7 +297,7 @@ def test_download_pause_resume_restarts(tmp_path, patch_finder, monkeypatch):
 
     result = [None]
     def run_download():
-        result[0] = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * 1024 * 1024)
+        result[0] = dl.download("magnet:?xt=foo", out_dir, expected_size=100 * MB)
 
     t = threading.Thread(target=run_download)
     t.start()

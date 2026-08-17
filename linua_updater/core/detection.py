@@ -4,14 +4,16 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Set
 
+from linua_updater.constants import SIMS_4_GAME_EXE_REL
+
 
 def _platform() -> str:
     return sys.platform
 
 
 class GameDetector:
-    _EXE_REL = ("Game", "Bin", "TS4_x64.exe")
-    _EXE_NAME = "TS4_x64.exe"
+    _EXE_REL = SIMS_4_GAME_EXE_REL
+    _EXE_NAME = SIMS_4_GAME_EXE_REL[-1]
 
     @staticmethod
     def _has_valid_exe(path: str) -> bool:

@@ -1,8 +1,11 @@
 import shutil
 from typing import Any, Dict, List
 
-from linua_updater.constants import SIZE_ESTIMATES
+from linua_updater.constants import GB, KB, MB, SIZE_ESTIMATES
 from linua_updater.core.database import DLCDatabase
+
+DEFAULT_DLC_SIZE_FALLBACK = 500 * MB
+SPACE_BUFFER_FACTOR = 1.1
 
 
 class DiskSpaceChecker:
@@ -16,7 +19,7 @@ class DiskSpaceChecker:
         size = info.getSize() if info else None
         if size:
             return size
-        return SIZE_ESTIMATES.get(dlc_id, 500000000)
+        return SIZE_ESTIMATES.get(dlc_id, DEFAULT_DLC_SIZE_FALLBACK)
 
     @staticmethod
     def calculate_required_space(dlc_ids: List[str]) -> int:
@@ -25,8 +28,8 @@ class DiskSpaceChecker:
         for dlc_id in dlc_ids:
             total += DiskSpaceChecker.get_dlc_size(dlc_id)
 
-        # Add 10% buffer for temporary files
-        return int(total * 1.1)
+        # Add buffer for temporary files
+        return int(total * SPACE_BUFFER_FACTOR)
 
     @staticmethod
     def get_free_space(path: str) -> int:
@@ -46,17 +49,17 @@ class DiskSpaceChecker:
         return {
             "required_bytes": required,
             "available_bytes": available,
-            "required_gb": required / (1024**3),
-            "available_gb": available / (1024**3),
+            "required_gb": required / GB,
+            "available_gb": available / GB,
             "enough_space": available >= required,
-            "shortage_gb": max(0, (required - available) / (1024**3)),
+            "shortage_gb": max(0, (required - available) / GB),
         }
 
     @staticmethod
     def format_size(bytes_size: float) -> str:
         """Format bytes to human readable"""
         for unit in ["B", "KB", "MB", "GB", "TB"]:
-            if bytes_size < 1024.0:
+            if bytes_size < KB:
                 return f"{bytes_size:.1f} {unit}"
-            bytes_size /= 1024.0
+            bytes_size /= KB
         return f"{bytes_size:.1f} PB"

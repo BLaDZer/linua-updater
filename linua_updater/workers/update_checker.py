@@ -5,7 +5,14 @@ from typing import Any, Dict, Optional
 import requests
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from linua_updater.constants import APP_VERSION, DEFAULT_VERSION_CHECK_URL
+from linua_updater.constants import (
+    APP_VERSION,
+    CACHE_TIMESTAMP_KEY,
+    DEFAULT_VERSION_CHECK_URL,
+    HTTP_OK,
+    HTTP_TIMEOUT_SEC,
+    SECONDS_IN_MINUTE,
+)
 from linua_updater.logging_util import ImprovedLogger
 from linua_updater.paths import AppPaths
 
@@ -32,7 +39,7 @@ class UpdateChecker(QObject):
             if self.cache_file.exists():
                 with open(self.cache_file) as f:
                     cache: Dict[str, Any] = json.load(f)
-                    cached_time = cache.get("timestamp", 0)
+                    cached_time = cache.get(CACHE_TIMESTAMP_KEY, 0)
                     current_time = time.time()
 
                     # Check if cache is still valid
@@ -46,7 +53,7 @@ class UpdateChecker(QObject):
         """Save update check result to cache"""
         try:
             AppPaths.ensure()
-            cache = {"timestamp": time.time(), "latest_version": latest_version, "download_url": download_url}
+            cache = {CACHE_TIMESTAMP_KEY: time.time(), "latest_version": latest_version, "download_url": download_url}
             with open(self.cache_file, "w") as f:
                 json.dump(cache, f)
         except Exception as e:
@@ -60,7 +67,7 @@ class UpdateChecker(QObject):
             if cache:
                 latest_version = cache.get("latest_version", "")
                 download_url = cache.get("download_url", "")
-                self.log(f"Using cached update info (age: {int((time.time() - cache['timestamp']) / 60)} min)", "DEBUG")
+                self.log(f"Using cached update info (age: {int((time.time() - cache[CACHE_TIMESTAMP_KEY]) / SECONDS_IN_MINUTE)} min)", "DEBUG")
 
                 if latest_version and self._compare_versions(latest_version, APP_VERSION):
                     self.update_available.emit(latest_version, download_url)
@@ -70,9 +77,9 @@ class UpdateChecker(QObject):
 
             # Perform actual check
             self.log("Checking for updates...", "INFO")
-            response = requests.get(self.version_url, timeout=10)
+            response = requests.get(self.version_url, timeout=HTTP_TIMEOUT_SEC)
 
-            if response.status_code == 200:
+            if response.status_code == HTTP_OK:
                 data = response.json()
                 latest_version = data.get("version", "").replace("v", "")
                 download_url = data.get("download_url", "")

@@ -6,9 +6,29 @@ from typing import Callable, Dict, Optional, Tuple
 
 import requests
 
-from linua_updater.constants import APP_VERSION, DEFAULT_MIRRORS
+from linua_updater.constants import (
+    APP_VERSION,
+    DEFAULT_MIRRORS,
+    GB,
+    KB,
+    MB,
+    PERCENT_MAX,
+    RESULT_CANCELLED,
+    RESULT_OK,
+)
 from linua_updater.core.diagnostics import NetworkDiagnostics
 from linua_updater.logging_util import ImprovedLogger
+
+# Downloader tuning
+DOWNLOAD_CHUNK_SIZE = 256 * KB
+MIN_SPEED_THRESHOLD = 50 * KB
+MAX_FILE_SIZE = 10 * GB
+MAX_RETRIES = 3
+
+DOWNLOAD_TIMEOUT_SEC = 30
+MAX_RETRY_BACKOFF_SEC = 10
+SPEED_CHECK_DURATION_SEC = 10
+PAUSE_WAIT_TIMEOUT_SEC = 0.5
 
 
 class SmartDownloader:
@@ -36,8 +56,8 @@ class SmartDownloader:
         self._source: Optional[str] = None
         self._pause_cond = threading.Condition()
         self._progress_callback: Optional[Callable[[float, float, float], None]] = None
-        self.min_speed_threshold = 50 * 1024  # 50 KB/s minimum speed
-        self.speed_check_duration = 10  # Check speed after 10 seconds
+        self.min_speed_threshold = MIN_SPEED_THRESHOLD  # 50 KB/s minimum speed
+        self.speed_check_duration = SPEED_CHECK_DURATION_SEC  # Check speed after 10 seconds
 
     def set_progress_callback(self, callback: Optional[Callable[[float, float, float], None]]) -> None:
         self._progress_callback = callback
@@ -72,7 +92,7 @@ class SmartDownloader:
             size = os.path.getsize(out_path)
         except OSError:
             size = 0
-        self.logger.log(f"Downloaded {self._display} ({size / (1024 * 1024):.1f} MB)")
+        self.logger.log(f"Downloaded {self._display} ({size / MB:.1f} MB)")
 
     def download(
         self,
@@ -91,27 +111,27 @@ class SmartDownloader:
 
         if self._cancelled:
             self._active = False
-            return False, "Cancelled"
+            return False, RESULT_CANCELLED
 
         if resume and os.path.exists(temp_path):
             downloaded = os.path.getsize(temp_path)
-            self.logger.log(f"Resuming download: {downloaded / (1024 * 1024):.1f}MB")
+            self.logger.log(f"Resuming download: {downloaded / MB:.1f}MB")
 
         success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
         if success:
             self._log_downloaded(out_path)
             self._active = False
-            return True, "OK"
+            return True, RESULT_OK
 
         if self._cancelled:
             self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
-            return False, "Cancelled"
+            return False, RESULT_CANCELLED
 
         if self.diagnostics and self.diagnostics.working_proxies and self.use_proxy:
             for proxy in self.diagnostics.working_proxies:
                 if self._cancelled:
                     self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
-                    return False, "Cancelled"
+                    return False, RESULT_CANCELLED
                 self.set_proxy(proxy)
                 success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
                 if success:
@@ -121,14 +141,14 @@ class SmartDownloader:
 
         if self._cancelled:
             self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
-            return False, "Cancelled"
+            return False, RESULT_CANCELLED
 
         mirrors = self.mirrors
         for domain, mirror in mirrors.items():
             if domain in url:
                 if self._cancelled:
                     self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
-                    return False, "Cancelled"
+                    return False, RESULT_CANCELLED
                 mirror_url = url.replace(domain, mirror)
                 self.set_proxy(None)
                 success, msg = self._try_download_with_retry(mirror_url, out_path, temp_path, downloaded, expected_size)
@@ -148,18 +168,18 @@ class SmartDownloader:
         temp_path: str,
         start_byte: int = 0,
         expected_size: Optional[int] = None,
-        max_retries: int = 3,
+        max_retries: int = MAX_RETRIES,
     ) -> Tuple[bool, str]:
         for attempt in range(max_retries):
             if self._cancelled:
-                return False, "Cancelled"
+                return False, RESULT_CANCELLED
             try:
                 if attempt > 0:
-                    delay = min(2**attempt, 10)
+                    delay = min(2**attempt, MAX_RETRY_BACKOFF_SEC)
                     time.sleep(delay)
                 success, msg = self._try_download(url, out_path, temp_path, start_byte, expected_size)
                 if success:
-                    return True, "OK"
+                    return True, RESULT_OK
                 if "corrupted" in msg.lower() or "invalid" in msg.lower():
                     if os.path.exists(temp_path):
                         os.remove(temp_path)
@@ -182,16 +202,16 @@ class SmartDownloader:
             headers = {}
             if start_byte > 0:
                 headers["Range"] = f"bytes={start_byte}-"
-            with self.session.get(url, stream=True, timeout=30, verify=True, headers=headers) as r:
-                r.raise_for_status()
+            with self.session.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT_SEC, verify=True, headers=headers) as response:
+                response.raise_for_status()
 
                 # Use expected_size if Content-Length is not available
-                total_size = int(r.headers.get("content-length", 0))
+                total_size = int(response.headers.get("content-length", 0))
                 if total_size == 0 and expected_size:
                     total_size = expected_size
 
                 total_size += start_byte
-                if total_size > 10 * 1024 * 1024 * 1024:
+                if total_size > MAX_FILE_SIZE:
                     return False, "File too large (>10GB)"
 
                 mode = "ab" if start_byte > 0 else "wb"
@@ -201,15 +221,15 @@ class SmartDownloader:
                     last_check_time = start_time
                     last_check_bytes = downloaded
 
-                    for chunk in r.iter_content(chunk_size=256 * 1024):
+                    for chunk in response.iter_content(chunk_size=DOWNLOAD_CHUNK_SIZE):
                         if self._cancelled:
-                            return False, "Cancelled"
+                            return False, RESULT_CANCELLED
                         if self._paused:
                             with self._pause_cond:
                                 while self._paused and not self._cancelled:
-                                    self._pause_cond.wait(timeout=0.5)
+                                    self._pause_cond.wait(timeout=PAUSE_WAIT_TIMEOUT_SEC)
                         if self._cancelled:
-                            return False, "Cancelled"  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
+                            return False, RESULT_CANCELLED  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
@@ -227,7 +247,7 @@ class SmartDownloader:
                                 if current_time - start_time > self.speed_check_duration:
                                     if current_speed < self.min_speed_threshold:
                                         self.logger.log(
-                                            f"Speed too slow: {current_speed / 1024:.1f} KB/s (min: {self.min_speed_threshold / 1024:.1f} KB/s)"
+                                            f"Speed too slow: {current_speed / KB:.1f} KB/s (min: {self.min_speed_threshold / KB:.1f} KB/s)"
                                         )
                                         return False, "Speed too slow, trying alternative"
 
@@ -235,19 +255,19 @@ class SmartDownloader:
                                 last_check_bytes = downloaded
 
                             if total_size > 0 and self._progress_callback:
-                                progress = (downloaded / total_size) * 100
+                                progress = (downloaded / total_size) * PERCENT_MAX
                                 self._progress_callback(progress, downloaded, total_size)
 
                 if total_size > 0:
                     actual_size = os.path.getsize(temp_path)
                     # Only check size if we have Content-Length from server
-                    if int(r.headers.get("content-length", 0)) > 0 and actual_size != total_size:
+                    if int(response.headers.get("content-length", 0)) > 0 and actual_size != total_size:
                         return False, f"Size mismatch: expected {total_size}, got {actual_size}"
                 if os.path.exists(temp_path):
                     shutil.move(temp_path, out_path)
                 if total_size > 0 and self._progress_callback:
-                    self._progress_callback(100, downloaded, total_size)
-                return True, "OK"
+                    self._progress_callback(PERCENT_MAX, downloaded, total_size)
+                return True, RESULT_OK
         except requests.exceptions.Timeout:
             return False, "Timeout"
         except requests.exceptions.ConnectionError:

@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from linua_updater.constants import COLOR_SUCCESS, COLOR_WARNING
 from linua_updater.core.database import DLCDatabase
 from linua_updater.core.models import DLCInfo
 from linua_updater.logging_util import ImprovedLogger
@@ -39,7 +40,7 @@ class CompletionDialog(QDialog):
         layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
 
         title = QLabel("All done. Enjoy and have fun playing!")
-        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #6bcf7f; padding: 10px;")
+        title.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {COLOR_SUCCESS}; padding: 10px;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
@@ -212,7 +213,7 @@ class SpaceWarningDialog(QDialog):
 
         # Warning icon and title
         title = QLabel("Insufficient Disk Space")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #ffd93d; padding: 10px;")
+        title.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {COLOR_WARNING}; padding: 10px;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 

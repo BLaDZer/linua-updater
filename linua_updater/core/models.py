@@ -3,6 +3,26 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from linua_updater.constants import (
+    CHECKSUM_MD5,
+    CHECKSUM_SHA1,
+    CHECKSUM_SHA256,
+    DATABASE_DLC_KEY_CHECKSUM,
+    DATABASE_DLC_KEY_MAGNET,
+    DATABASE_DLC_KEY_MIRRORS,
+    DATABASE_DLC_KEY_NAME,
+    DATABASE_DLC_KEY_PARTS,
+    DATABASE_DLC_KEY_PRIORITY,
+    DATABASE_DLC_KEY_SIZE,
+    DATABASE_DLC_KEY_TYPE,
+    DATABASE_DLC_KEY_URL,
+    MB,
+)
+
+SOURCE_TYPE_URL = "url"
+SOURCE_TYPE_PARTS = "parts"
+SOURCE_TYPE_MAGNET = "magnet"
+
 
 class CheckSums:
     def __init__(self, sha256: Optional[str] = None, sha1: Optional[str] = None, md5: Optional[str] = None) -> None:
@@ -14,7 +34,11 @@ class CheckSums:
     def from_dict(cls, raw: object) -> Optional["CheckSums"]:
         if not isinstance(raw, dict):
             return None
-        return cls(sha256=raw.get("sha256") or None, sha1=raw.get("sha1") or None, md5=raw.get("md5") or None)
+        return cls(
+            sha256=raw.get(CHECKSUM_SHA256) or None,
+            sha1=raw.get(CHECKSUM_SHA1) or None,
+            md5=raw.get(CHECKSUM_MD5) or None,
+        )
 
     def getSha256(self) -> Optional[str]:
         return self._sha256
@@ -26,11 +50,11 @@ class CheckSums:
         return self._md5
 
     def get(self, alg: str) -> Optional[str]:
-        if alg == "sha256":
+        if alg == CHECKSUM_SHA256:
             return self._sha256
-        if alg == "sha1":
+        if alg == CHECKSUM_SHA1:
             return self._sha1
-        if alg == "md5":
+        if alg == CHECKSUM_MD5:
             return self._md5
         return None
 
@@ -54,18 +78,18 @@ class DownloadSource:
     def from_dict(cls, raw: object) -> Optional["DownloadSource"]:
         if not isinstance(raw, dict):
             return None
-        source_type: Optional[str] = raw.get("type")
-        if source_type not in ("url", "parts", "magnet"):
-            if "parts" in raw:
-                source_type = "parts"
-            elif "url" in raw:
-                source_type = "url"
-            elif "magnet" in raw:
-                source_type = "magnet"
+        source_type: Optional[str] = raw.get(DATABASE_DLC_KEY_TYPE)
+        if source_type not in (SOURCE_TYPE_URL, SOURCE_TYPE_PARTS, SOURCE_TYPE_MAGNET):
+            if DATABASE_DLC_KEY_PARTS in raw:
+                source_type = SOURCE_TYPE_PARTS
+            elif DATABASE_DLC_KEY_URL in raw:
+                source_type = SOURCE_TYPE_URL
+            elif DATABASE_DLC_KEY_MAGNET in raw:
+                source_type = SOURCE_TYPE_MAGNET
             else:
                 source_type = None
-        checksums = CheckSums.from_dict(raw.get("checksum"))
-        priority_raw = raw.get("priority")
+        checksums = CheckSums.from_dict(raw.get(DATABASE_DLC_KEY_CHECKSUM))
+        priority_raw = raw.get(DATABASE_DLC_KEY_PRIORITY)
         if priority_raw is None or isinstance(priority_raw, bool):
             priority = 0
         elif isinstance(priority_raw, int):
@@ -75,32 +99,32 @@ class DownloadSource:
                 priority = int(priority_raw)
             except (TypeError, ValueError):
                 priority = 0
-        if source_type == "parts":
+        if source_type == SOURCE_TYPE_PARTS:
             parts: List[DownloadSource] = []
-            for part in raw.get("parts") or []:
+            for part in raw.get(DATABASE_DLC_KEY_PARTS) or []:
                 parsed = cls.from_dict(part)
                 if parsed is not None:
                     parts.append(parsed)
-            return cls("parts", parts=parts, checksums=checksums, priority=priority)
-        if source_type == "url":
-            return cls("url", source=raw.get("url"), checksums=checksums, priority=priority)
-        if source_type == "magnet":
-            return cls("magnet", source=raw.get("magnet"), checksums=checksums, priority=priority)
+            return cls(SOURCE_TYPE_PARTS, parts=parts, checksums=checksums, priority=priority)
+        if source_type == SOURCE_TYPE_URL:
+            return cls(SOURCE_TYPE_URL, source=raw.get(DATABASE_DLC_KEY_URL), checksums=checksums, priority=priority)
+        if source_type == SOURCE_TYPE_MAGNET:
+            return cls(SOURCE_TYPE_MAGNET, source=raw.get(DATABASE_DLC_KEY_MAGNET), checksums=checksums, priority=priority)
         return cls(source_type, checksums=checksums, priority=priority)
 
     @classmethod
     def url(cls, url: str, checksums: Optional["CheckSums"] = None, priority: int = 0) -> "DownloadSource":
-        return cls("url", source=url, checksums=checksums, priority=priority)
+        return cls(SOURCE_TYPE_URL, source=url, checksums=checksums, priority=priority)
 
     @classmethod
     def magnet(cls, magnet: str, checksums: Optional["CheckSums"] = None, priority: int = 0) -> "DownloadSource":
-        return cls("magnet", source=magnet, checksums=checksums, priority=priority)
+        return cls(SOURCE_TYPE_MAGNET, source=magnet, checksums=checksums, priority=priority)
 
     @classmethod
     def parts(
         cls, part_sources: List["DownloadSource"], checksums: Optional["CheckSums"] = None, priority: int = 0
     ) -> "DownloadSource":
-        return cls("parts", parts=part_sources, checksums=checksums, priority=priority)
+        return cls(SOURCE_TYPE_PARTS, parts=part_sources, checksums=checksums, priority=priority)
 
     def getType(self) -> Optional[str]:
         return self._type
@@ -135,17 +159,17 @@ class DLCInfo:
 
     @classmethod
     def from_entry(cls, dlc_id: str, raw: Dict[str, Any]) -> "DLCInfo":
-        entry_checksums = CheckSums.from_dict(raw.get("checksum"))
+        entry_checksums = CheckSums.from_dict(raw.get(DATABASE_DLC_KEY_CHECKSUM))
         main: Optional[DownloadSource] = None
-        if raw.get("url"):
-            main = DownloadSource.url(raw["url"], checksums=entry_checksums)
+        if raw.get(DATABASE_DLC_KEY_URL):
+            main = DownloadSource.url(raw[DATABASE_DLC_KEY_URL], checksums=entry_checksums)
         mirrors: List[DownloadSource] = []
-        if raw.get("magnet"):
-            mirrors.append(DownloadSource.magnet(raw["magnet"], checksums=entry_checksums))
-        if raw.get("parts"):
-            part_sources: List[DownloadSource] = [DownloadSource.url(p) for p in raw["parts"]]
+        if raw.get(DATABASE_DLC_KEY_MAGNET):
+            mirrors.append(DownloadSource.magnet(raw[DATABASE_DLC_KEY_MAGNET], checksums=entry_checksums))
+        if raw.get(DATABASE_DLC_KEY_PARTS):
+            part_sources: List[DownloadSource] = [DownloadSource.url(p) for p in raw[DATABASE_DLC_KEY_PARTS]]
             mirrors.append(DownloadSource.parts(part_sources, checksums=entry_checksums))
-        for mirror in raw.get("mirrors") or []:
+        for mirror in raw.get(DATABASE_DLC_KEY_MIRRORS) or []:
             source = DownloadSource.from_dict(mirror)
             if source is None:
                 continue
@@ -153,7 +177,7 @@ class DLCInfo:
                 source._checksums = entry_checksums
             mirrors.append(source)
         mirrors.sort(key=lambda s: s.getPriority(), reverse=True)
-        return cls(dlc_id, raw.get("name", "Unknown"), raw.get("size"), main, mirrors)
+        return cls(dlc_id, raw.get(DATABASE_DLC_KEY_NAME, "Unknown"), raw.get(DATABASE_DLC_KEY_SIZE), main, mirrors)
 
     def getId(self) -> str:
         return self._id
@@ -186,10 +210,10 @@ class InstallationStats:
         self.start_time = time.time()
 
     def record_download(self, dlc_id: str, size_bytes: float, duration_sec: float) -> None:
-        speed_mbps = (size_bytes / (1024 * 1024)) / duration_sec if duration_sec > 0 else 0
+        speed_mbps = (size_bytes / MB) / duration_sec if duration_sec > 0 else 0
         with self.lock:
             self.downloads[dlc_id] = {
-                "size_mb": size_bytes / (1024 * 1024),
+                "size_mb": size_bytes / MB,
                 "duration_sec": duration_sec,
                 "speed_mbps": speed_mbps,
             }
@@ -209,12 +233,12 @@ class InstallationStats:
             if not self.start_time or not self.end_time:
                 return None
             total_duration = self.end_time - self.start_time
-            avg_speed = (self.total_bytes / (1024 * 1024)) / self.total_time if self.total_time > 0 else 0
+            avg_speed = (self.total_bytes / MB) / self.total_time if self.total_time > 0 else 0
             total_dlc = self.total_dlc if self.total_dlc is not None else len(self.downloads)
             successful = len(self.downloads)
             return {
                 "total_dlc": total_dlc,
-                "total_size_mb": self.total_bytes / (1024 * 1024),
+                "total_size_mb": self.total_bytes / MB,
                 "total_duration_sec": total_duration,
                 "avg_speed_mbps": avg_speed,
                 "successful": successful,

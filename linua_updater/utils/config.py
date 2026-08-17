@@ -1,8 +1,23 @@
 import json
 from typing import Any, Dict, Optional, cast
 
-from linua_updater.constants import DEFAULT_MIRRORS, DEFAULT_PROXY_PORTS, DEFAULT_REGION_API, DEFAULT_VERSION_CHECK_URL
+from linua_updater.constants import (
+    DEFAULT_MIRRORS,
+    DEFAULT_PROXY_PORTS,
+    DEFAULT_REGION_API_URL,
+    DEFAULT_VERSION_CHECK_URL,
+    JSON_INDENT,
+)
 from linua_updater.paths import AppPaths
+
+DEFAULT_SETTINGS = {"max_threads": 3, "use_proxy": True, "resume_downloads": True, "cleanup_temp": True}
+
+DEFAULT_NETWORK = {
+    "version_check_url": DEFAULT_VERSION_CHECK_URL,
+    "region_api": DEFAULT_REGION_API_URL,
+    "proxy_ports": list(DEFAULT_PROXY_PORTS),
+    "mirrors": dict(DEFAULT_MIRRORS),
+}
 
 
 class ConfigManager:
@@ -13,7 +28,7 @@ class ConfigManager:
         if not self.path.exists():
             self.data = {
                 "game_path": "",
-                "settings": {"max_threads": 3, "use_proxy": True, "resume_downloads": True, "cleanup_temp": True},
+                "settings": dict(DEFAULT_SETTINGS),
             }
             self.save()
         else:
@@ -21,16 +36,11 @@ class ConfigManager:
                 with open(self.path, encoding="utf-8") as f:
                     self.data = json.load(f)
                     if "settings" not in self.data:
-                        self.data["settings"] = {
-                            "max_threads": 3,
-                            "use_proxy": True,
-                            "resume_downloads": True,
-                            "cleanup_temp": True,
-                        }
+                        self.data["settings"] = dict(DEFAULT_SETTINGS)
             except:
                 self.data = {
                     "game_path": "",
-                    "settings": {"max_threads": 3, "use_proxy": True, "resume_downloads": True, "cleanup_temp": True},
+                    "settings": dict(DEFAULT_SETTINGS),
                 }
                 self.save()
 
@@ -45,14 +55,8 @@ class ConfigManager:
         return cast(Dict[str, Any], self.data.get("settings", {}))
 
     def get_network(self) -> Dict[str, Any]:
-        defaults = {
-            "version_check_url": DEFAULT_VERSION_CHECK_URL,
-            "region_api": DEFAULT_REGION_API,
-            "proxy_ports": list(DEFAULT_PROXY_PORTS),
-            "mirrors": dict(DEFAULT_MIRRORS),
-        }
         net = self.data.get("network", {}) or {}
-        merged = dict(defaults)
+        merged = dict(DEFAULT_NETWORK)
         for key, value in net.items():
             if value:
                 merged[key] = value
@@ -61,6 +65,6 @@ class ConfigManager:
     def save(self) -> None:
         try:
             with open(self.path, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, indent=4, ensure_ascii=False)
+                json.dump(self.data, f, indent=JSON_INDENT, ensure_ascii=False)
         except Exception as e:
             print(f"Config save failed: {e}")

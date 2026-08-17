@@ -4,6 +4,7 @@ from typing import List, Tuple
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from linua_updater.constants import RESULT_OK
 from linua_updater.logging_util import ImprovedLogger
 
 
@@ -47,7 +48,7 @@ class UninstallWorker(QObject):
             self.logger.log(f"Uninstalling {dlc_id}...", "INFO")
             shutil.rmtree(dlc_path)
             self.logger.log(f"{dlc_id}: Removed successfully", "INFO")
-            return True, "OK"
+            return True, RESULT_OK
         except PermissionError:
             return False, "Permission denied - try running as administrator"
         except Exception as e:

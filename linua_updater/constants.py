@@ -4,15 +4,81 @@ Extracted verbatim from the former monolithic ``LinuaUpdater_v4.3.0.py``.
 """
 
 APP_VERSION = "5.0.0"
-GITHUB_REPO = "BLaDZer/linua-updater"
-DEFAULT_VERSION_CHECK_URL = "https://raw.githubusercontent.com/BLaDZer/linua-updater/main/version.json"
-DEFAULT_DATABASE_URL = "https://raw.githubusercontent.com/BLaDZer/linua-updater/main/database.json"
-DEFAULT_REGION_API = "https://ipapi.co/json/"
+GITHUB_URL = "https://github.com"
+GITHUB_USER_CONTENT_URL = "https://raw.githubusercontent.com"
+CLOUDFLARE_WARP_URL = "https://1.1.1.1/"
+DEFAULT_VERSION_CHECK_URL = f"{GITHUB_USER_CONTENT_URL}/BLaDZer/linua-updater/main/version.json"
+DEFAULT_DATABASE_URL = f"{GITHUB_USER_CONTENT_URL}/BLaDZer/linua-updater/main/database.json"
+DEFAULT_REGION_API_URL = "https://ipapi.co/json/"
 DEFAULT_PROXY_PORTS = [1080, 2080, 8080, 7890, 10808, 8888, 1087]
 DEFAULT_MIRRORS = {
-    "github.com": "https://gh-proxy.com/https://github.com",
-    "raw.githubusercontent.com": "https://gh-proxy.com/https://raw.githubusercontent.com",
+    "github.com": "https://gh-proxy.com/" + GITHUB_URL,
+    "raw.githubusercontent.com": "https://gh-proxy.com/" + GITHUB_USER_CONTENT_URL,
 }
+
+# Byte-size conversion factors
+KB = 1024
+MB = KB * 1024
+GB = MB * 1024
+
+# HTTP timeouts (seconds)
+HTTP_TIMEOUT_SEC = 10
+
+# HTTP status codes
+HTTP_OK = 200
+HTTP_CLIENT_ERROR = 400
+
+# Result protocol strings returned by installers/downloaders
+RESULT_OK = "OK"
+RESULT_CANCELLED = "Cancelled"
+
+# Cache/metadata wrapper key holding the write time of a JSON cache file
+CACHE_TIMESTAMP_KEY = "timestamp"
+
+# UI / log theme colors (shared between the log colorizer and widget stylesheets)
+COLOR_ERROR = "#ff6b6b"
+COLOR_WARNING = "#ffd93d"
+COLOR_SUCCESS = "#6bcf7f"
+COLOR_INFO = "#4dabf7"
+COLOR_DOWNLOADING = "#a78bfa"
+COLOR_TEXT_DEFAULT = "#e9ecef"
+COLOR_ACCENT = "#0078d7"
+COLOR_DANGER = "#c92a2a"
+
+# The Sims 4 executable path relative to the game folder
+SIMS_4_GAME_EXE_REL = ("Game", "Bin", "TS4_x64.exe")
+
+# Time and percentage helpers
+SECONDS_IN_MINUTE = 60
+SECONDS_IN_HOUR = 3600
+MILLISECONDS_IN_SECOND = 1000
+PERCENT_MAX = 100
+
+# Checksum algorithm names used in catalog entries
+CHECKSUM_SHA256 = "sha256"
+CHECKSUM_SHA1 = "sha1"
+CHECKSUM_MD5 = "md5"
+
+# JSON file pretty-print indentation (state/cache/config files)
+JSON_INDENT = 2
+
+# Installer sanity check: minimum plausible size of a downloaded archive
+MIN_VALID_DOWNLOAD_SIZE = KB
+
+# DATABASE keys
+DATABASE_KEY_VERSION = "version"
+DATABASE_KEY_DLC = "dlc"
+DATABASE_KEY_UPDATED_AT = "updated_at"
+
+DATABASE_DLC_KEY_NAME = "name"
+DATABASE_DLC_KEY_URL = "url"
+DATABASE_DLC_KEY_PARTS = "parts"
+DATABASE_DLC_KEY_MAGNET = "magnet"
+DATABASE_DLC_KEY_MIRRORS = "mirrors"
+DATABASE_DLC_KEY_CHECKSUM = "checksum"
+DATABASE_DLC_KEY_PRIORITY = "priority"
+DATABASE_DLC_KEY_TYPE = "type"
+DATABASE_DLC_KEY_SIZE = "size"
 
 # Estimated archive sizes per DLC id (bytes). Used only as a fallback when a
 # catalogue entry carries no ``size`` field.

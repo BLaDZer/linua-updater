@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from typing import Any, Dict
 
+from linua_updater.constants import JSON_INDENT, PERCENT_MAX
 from linua_updater.paths import AppPaths
 
 
@@ -36,7 +37,7 @@ class DownloadQueue:
             self._save()
 
     def get_incomplete(self) -> Dict[str, Any]:
-        return {k: v for k, v in self.queue.items() if v.get("progress", 0) < 100}
+        return {k: v for k, v in self.queue.items() if v.get("progress", 0) < PERCENT_MAX}
 
     def clear_all(self) -> None:
         self.queue = {}
@@ -45,6 +46,6 @@ class DownloadQueue:
     def _save(self) -> None:
         try:
             with open(self.queue_file, "w", encoding="utf-8") as f:
-                json.dump(self.queue, f, indent=2, ensure_ascii=False)
+                json.dump(self.queue, f, indent=JSON_INDENT, ensure_ascii=False)
         except Exception as e:
             print(f"Queue save error: {e}")

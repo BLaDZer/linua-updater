@@ -2,6 +2,7 @@ import os
 
 import pytest
 
+from linua_updater.constants import MB
 from linua_updater.core import installers
 from linua_updater.core.installers import MultiPartInstaller, SingleDLCInstaller, TorrentInstaller
 from linua_updater.core.models import DLCInfo, DownloadSource, InstallationStats
@@ -136,7 +137,7 @@ def test_single_success_records_download(temp_download_dir):
     assert ok is True
     assert msg == "OK"
     assert "EP01" in stats.downloads
-    assert stats.downloads["EP01"]["size_mb"] == pytest.approx(2048 / (1024 * 1024))
+    assert stats.downloads["EP01"]["size_mb"] == pytest.approx(2048 / (MB))
     assert stats.errors == []
     assert ex.extract_zip_calls == [(dl.out_paths[0], str(temp_download_dir))]
 

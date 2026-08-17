@@ -11,8 +11,20 @@ from typing import Callable, Optional, Tuple
 from PyQt6.QtCore import QStandardPaths
 from PyQt6.QtWidgets import QTextEdit
 
+from linua_updater.constants import (
+    COLOR_DOWNLOADING,
+    COLOR_ERROR,
+    COLOR_INFO,
+    COLOR_SUCCESS,
+    COLOR_TEXT_DEFAULT,
+    COLOR_WARNING,
+    MB,
+)
 from linua_updater.paths import AppPaths
 
+# Log rotation
+LOG_MAX_BYTES = 5 * MB
+LOG_BACKUP_COUNT = 3
 
 def _reveal_in_explorer(path: Path) -> None:
     """Cross-platform helper to reveal a file/folder in the file explorer"""
@@ -42,7 +54,7 @@ class ImprovedLogger:
         self.file_logger.setLevel(logging.DEBUG)
 
         if not self.file_logger.handlers:
-            handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+            handler = RotatingFileHandler(log_file, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT, encoding="utf-8")
             formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
             handler.setFormatter(formatter)
             self.file_logger.addHandler(handler)
@@ -63,17 +75,17 @@ class ImprovedLogger:
             line = f"{timestamp} {text}"
 
             if "ERROR" in text.upper() or "FAILED" in text.upper():
-                line = f'<font color="#ff6b6b">{line}</font>'
+                line = f'<font color="{COLOR_ERROR}">{line}</font>'
             elif "WARNING" in text.upper():
-                line = f'<font color="#ffd93d">{line}</font>'
+                line = f'<font color="{COLOR_WARNING}">{line}</font>'
             elif "SUCCESS" in text.upper() or "Complete" in text or "OK" in text:
-                line = f'<font color="#6bcf7f">{line}</font>'
+                line = f'<font color="{COLOR_SUCCESS}">{line}</font>'
             elif "Network" in text or "Proxy" in text:
-                line = f'<font color="#4dabf7">{line}</font>'
+                line = f'<font color="{COLOR_INFO}">{line}</font>'
             elif "Downloading" in text:
-                line = f'<font color="#a78bfa">{line}</font>'
+                line = f'<font color="{COLOR_DOWNLOADING}">{line}</font>'
             else:
-                line = f'<font color="#e9ecef">{line}</font>'
+                line = f'<font color="{COLOR_TEXT_DEFAULT}">{line}</font>'
 
             self.widget.append(line)
             self.widget.ensureCursorVisible()

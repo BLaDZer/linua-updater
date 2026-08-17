@@ -5,8 +5,28 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from linua_updater.constants import (
+    GB,
+    KB,
+    MB,
+    RESULT_CANCELLED,
+)
 from linua_updater.logging_util import ImprovedLogger
 from linua_updater.utils.aria2 import Aria2Finder
+
+PROCESS_KILL_WAIT_SEC = 2
+PAUSE_POLL_INTERVAL_SEC = 0.1
+TORRENT_STOP_TIMEOUT_SEC = 600
+
+ARIA2_FLAG_SEED_TIME = "--seed-time=0"
+ARIA2_FLAG_BT_STOP_TIMEOUT = "--bt-stop-timeout="
+ARIA2_FLAG_CONTINUE = "--continue=true"
+ARIA2_FLAG_ALLOW_OVERWRITE = "--allow-overwrite=true"
+ARIA2_FLAG_FILE_ALLOCATION = "--file-allocation=none"
+ARIA2_FLAG_SUMMARY_INTERVAL = "--summary-interval=1"
+ARIA2_FLAG_CHECK_INTEGRITY = "--check-integrity=true"
+
+TORRENT_EXTENSIONS = (".aria2", ".torrent")
 
 
 def _popen_kwargs() -> Dict[str, Any]:
@@ -44,7 +64,7 @@ class TorrentDownloader:
                 try:
                     self._process.terminate()
                     try:
-                        self._process.wait(timeout=2)
+                        self._process.wait(timeout=PROCESS_KILL_WAIT_SEC)
                     except Exception:
                         try:
                             self._process.kill()
@@ -77,7 +97,7 @@ class TorrentDownloader:
     def _wait_for_resume(self) -> None:
         """Block until resume() or cancel(). Yields the GIL via sleep."""
         while self._paused and not self._cancelled:
-            time.sleep(0.1)
+            time.sleep(PAUSE_POLL_INTERVAL_SEC)
 
     def _build_command(self, magnet: str, out_dir: str) -> List[str]:
         assert self._aria2_path is not None  # guaranteed by download() before calling
@@ -85,13 +105,13 @@ class TorrentDownloader:
             self._aria2_path,
             magnet,
             "--dir=" + out_dir,
-            "--seed-time=0",
-            "--bt-stop-timeout=600",
-            "--continue=true",
-            "--allow-overwrite=true",
-            "--file-allocation=none",
-            "--summary-interval=1",
-            "--check-integrity=true",
+            ARIA2_FLAG_SEED_TIME,
+            f"{ARIA2_FLAG_BT_STOP_TIMEOUT}{TORRENT_STOP_TIMEOUT_SEC}",
+            ARIA2_FLAG_CONTINUE,
+            ARIA2_FLAG_ALLOW_OVERWRITE,
+            ARIA2_FLAG_FILE_ALLOCATION,
+            ARIA2_FLAG_SUMMARY_INTERVAL,
+            ARIA2_FLAG_CHECK_INTEGRITY,
         ]
         return cmd
 
@@ -99,9 +119,9 @@ class TorrentDownloader:
     def _parse_size(s: str) -> float:
         s = s.strip()
         multipliers = {
-            "KiB": 1024,
-            "MiB": 1024 * 1024,
-            "GiB": 1024 * 1024 * 1024,
+            "KiB": KB,
+            "MiB": MB,
+            "GiB": GB,
             "B": 1,
         }
         for unit, mult in multipliers.items():
@@ -143,7 +163,7 @@ class TorrentDownloader:
 
         try:
             if self._cancelled:  # cancel() beat download() to the start → no download
-                return False, "Cancelled"
+                return False, RESULT_CANCELLED
             self._cancelled = False
             self._out_dir = out_dir
             os.makedirs(out_dir, exist_ok=True)
@@ -153,7 +173,7 @@ class TorrentDownloader:
 
             while True:  # outer restart loop — pause terminates, resume restarts
                 if self._cancelled:  # never re-launch aria2c after a cancel (also after resume/pause)
-                    return False, "Cancelled"
+                    return False, RESULT_CANCELLED
                 try:
                     self._process = subprocess.Popen(
                         cmd,
@@ -177,7 +197,7 @@ class TorrentDownloader:
                             break
                         if self._cancelled:
                             self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
-                            return False, "Cancelled"
+                            return False, RESULT_CANCELLED
                         if self._paused:
                             restart = True  # halt; restart below once resumed
                             break
@@ -200,7 +220,7 @@ class TorrentDownloader:
                     self._wait_for_resume()
                     if self._cancelled:
                         self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
-                        return False, "Cancelled"
+                        return False, RESULT_CANCELLED
                     self._process.wait()  # reap the terminated child
                     self._process = None
                     continue  # re-run the command; --continue=true resumes from .aria2
@@ -209,13 +229,13 @@ class TorrentDownloader:
                 self._process = None
                 if self._cancelled:
                     self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
-                    return False, "Cancelled"
+                    return False, RESULT_CANCELLED
                 if self._paused:
                     # readline hit EOF because pause() terminated the process → wait, then restart
                     self._wait_for_resume()
                     if self._cancelled:
                         self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
-                        return False, "Cancelled"
+                        return False, RESULT_CANCELLED
                     continue
                 if exit_code != 0:
                     self.logger.log(f"aria2c exit code {exit_code}", "ERROR")
@@ -225,7 +245,7 @@ class TorrentDownloader:
             completed_files = []
             try:
                 for f in os.listdir(out_dir):
-                    if f.endswith((".aria2", ".torrent")):
+                    if f.endswith(TORRENT_EXTENSIONS):
                         try:
                             os.remove(os.path.join(out_dir, f))
                         except Exception:

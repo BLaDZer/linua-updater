@@ -2,11 +2,12 @@ import hashlib
 import os
 from typing import List, Optional
 
+from linua_updater.constants import CHECKSUM_MD5, CHECKSUM_SHA1, CHECKSUM_SHA256, MB
 from linua_updater.core.models import CheckSums
 
-SUPPORTED_CHECKSUMS = ("sha256", "sha1", "md5")
+SUPPORTED_CHECKSUMS = (CHECKSUM_SHA256, CHECKSUM_SHA1, CHECKSUM_MD5)
 
-_CHUNK_SIZE = 1024 * 1024
+_CHUNK_SIZE = MB
 
 
 def verify_file_checksums(file_path: str, checksums: Optional[CheckSums]) -> List[str]:

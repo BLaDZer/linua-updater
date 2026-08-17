@@ -5,7 +5,7 @@ import pytest
 from linua_updater.core.models import DLCInfo, DownloadSource
 from linua_updater.logging_util import SignalLogger
 from linua_updater.paths import AppPaths
-from linua_updater.workers.install_worker import InstallWorker, installer_kind
+from linua_updater.workers.install_worker import InstallWorker, get_installer_type
 
 
 class FakeQueue:
@@ -312,26 +312,26 @@ def test_pause_saves_state(worker):
 
 def test_installer_kind_magnet():
     source = DownloadSource.magnet("magnet:?xt=foo")
-    assert installer_kind(source) == "magnet"
+    assert get_installer_type(source) == "magnet"
 
 
 def test_installer_kind_parts():
     source = DownloadSource.parts([DownloadSource.url("http://example.com/1.7z.001")])
-    assert installer_kind(source) == "parts"
+    assert get_installer_type(source) == "parts"
 
 
 def test_installer_kind_url_only():
     source = DownloadSource.url("http://example.com/a.zip")
-    assert installer_kind(source) == "single"
+    assert get_installer_type(source) == "single"
 
 
 def test_installer_kind_none():
-    assert installer_kind(None) == "single"
+    assert get_installer_type(None) == "single"
 
 
 def test_installer_kind_magnet_over_parts():
     source = DownloadSource.magnet("magnet:?xt=foo")
-    assert installer_kind(source) == "magnet"
+    assert get_installer_type(source) == "magnet"
 
 
 def test_cancel_does_not_resume(worker):

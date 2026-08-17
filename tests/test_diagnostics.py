@@ -33,12 +33,12 @@ class FakeRequests:
         return self._next()
 
 
-def test_detect_region_ru_marks_is_russia(monkeypatch):
+def test_detect_region_ru_marks_is_restricted_region(monkeypatch):
     fake = FakeRequests([FakeResponse(json_data={"country_code": "RU"})])
     monkeypatch.setattr(diag_mod, "requests", fake)
     d = NetworkDiagnostics()
     assert d.detect_region() is True
-    assert d.is_russia is True
+    assert d.is_restricted_region is True
 
 
 def test_detect_region_network_error_false(monkeypatch):
@@ -46,7 +46,7 @@ def test_detect_region_network_error_false(monkeypatch):
     monkeypatch.setattr(diag_mod, "requests", fake)
     d = NetworkDiagnostics()
     assert d.detect_region() is False
-    assert d.is_russia is False
+    assert d.is_restricted_region is False
 
 
 def test_test_connection_ok(monkeypatch):

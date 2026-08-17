@@ -21,10 +21,18 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from linua_updater.constants import APP_VERSION
+from linua_updater.constants import (
+    APP_VERSION,
+    CACHE_TIMESTAMP_KEY,
+    CLOUDFLARE_WARP_URL,
+    COLOR_ACCENT,
+    PERCENT_MAX,
+    SECONDS_IN_MINUTE,
+    SIMS_4_GAME_EXE_REL,
+)
 from linua_updater.core.database import DLCDatabase
 from linua_updater.core.detection import GameDetector
-from linua_updater.core.diagnostics import NetworkDiagnostics
+from linua_updater.core.diagnostics import CONNECTION_DIRECT, CONNECTION_PROXY, NetworkDiagnostics
 from linua_updater.core.downloader import SmartDownloader
 from linua_updater.core.extractor import Extractor
 from linua_updater.logging_util import ImprovedLogger
@@ -209,7 +217,7 @@ class LinuaUI(QMainWindow):
         layout.setSpacing(8)
         title = QLabel(f"Linua Updater v{APP_VERSION}")
         title.setStyleSheet(
-            "QLabel{font-weight:bold;font-size:14px;padding:8px;color:#0078d7;background:#2a2a2a;border-radius:6px;text-align:center;}"
+            f"QLabel{{font-weight:bold;font-size:14px;padding:8px;color:{COLOR_ACCENT};background:#2a2a2a;border-radius:6px;text-align:center;}}"
         )
         layout.addWidget(title)
         path_label = QLabel("The Sims 4 folder:")
@@ -356,15 +364,15 @@ class LinuaUI(QMainWindow):
             if cache_file.exists():
                 with open(cache_file) as f:
                     cache = json.load(f)
-                if time.time() - cache.get("timestamp", 0) < cache_duration:
+                if time.time() - cache.get(CACHE_TIMESTAMP_KEY, 0) < cache_duration:
                     tool = NetworkDiagnostics(
                         self.logger, region_api=self.network["region_api"], proxy_ports=self.network["proxy_ports"]
                     )
                     tool.can_reach_github = cache.get("can_reach_github", True)
                     tool.proxy_needed = cache.get("proxy_needed", False)
-                    tool.recommended_solution = cache.get("recommended_solution", "direct")
+                    tool.recommended_solution = cache.get("recommended_solution", CONNECTION_DIRECT)
                     self.logger.log(
-                        f"Network: cached diagnostics ({int((time.time() - cache['timestamp']) / 60)} min old)", "DEBUG"
+                        f"Network: cached diagnostics ({int((time.time() - cache[CACHE_TIMESTAMP_KEY]) / SECONDS_IN_MINUTE)} min old)", "DEBUG"
                     )
                     self.diagnostics = tool
                     self.downloader = SmartDownloader(self.logger, self.diagnostics, mirrors=self.network["mirrors"])
@@ -389,7 +397,7 @@ class LinuaUI(QMainWindow):
             with open(cache_file, "w") as f:
                 json.dump(
                     {
-                        "timestamp": time.time(),
+                        CACHE_TIMESTAMP_KEY: time.time(),
                         "can_reach_github": tool.can_reach_github,
                         "proxy_needed": tool.proxy_needed,
                         "recommended_solution": tool.recommended_solution,
@@ -398,12 +406,12 @@ class LinuaUI(QMainWindow):
                 )
         except:
             pass
-        if tool.recommended_solution == "direct":
+        if tool.recommended_solution == CONNECTION_DIRECT:
             self.logger.log("Network check: OK (direct connection)")
-        elif tool.recommended_solution == "proxy":
+        elif tool.recommended_solution == CONNECTION_PROXY:
             self.logger.log(f"Network: using proxy ({len(tool.working_proxies)} found)")
         else:
-            self.logger.log("Network: blocked. Install Cloudflare WARP: https://1.1.1.1/", "WARNING")
+            self.logger.log("Network: blocked. Install Cloudflare WARP: " + CLOUDFLARE_WARP_URL, "WARNING")
 
     def show_settings(self) -> None:
         dlg = SettingsDialog(self, db=self.db, logger=self.logger)
@@ -508,7 +516,7 @@ class LinuaUI(QMainWindow):
                 return
             else:
                 self.logger.log("Running with admin privileges")
-        exe_path = os.path.join(path, "Game", "Bin", "TS4_x64.exe")
+        exe_path = os.path.join(path, *SIMS_4_GAME_EXE_REL)
         if not os.path.exists(exe_path):
             self.logger.log("TS4_x64.exe not found", "WARNING")
             reply = QMessageBox.question(
@@ -658,7 +666,7 @@ class LinuaUI(QMainWindow):
                 self.reset_ui_after_install()
             else:
                 self.logger.log("Installation complete!")
-                self.download_progress.setValue(100)
+                self.download_progress.setValue(PERCENT_MAX)
                 self.download_detail.setText("Installation complete!")
                 if self.is_closing:
                     return
@@ -739,7 +747,7 @@ class LinuaUI(QMainWindow):
         self.uninstall_worker.moveToThread(self.uninstall_thread)
 
         self.uninstall_worker.progress_updated.connect(
-            lambda curr, total: self.download_progress.setValue(int((curr / total) * 100))
+            lambda curr, total: self.download_progress.setValue(int((curr / total) * PERCENT_MAX))
         )
         self.uninstall_worker.dlc_removed.connect(self.on_dlc_removed)
         self.uninstall_worker.finished.connect(self.on_uninstall_finished)

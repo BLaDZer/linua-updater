@@ -2,6 +2,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import QApplication
 
+from linua_updater.constants import COLOR_ACCENT
+
 
 def apply_dark_palette(app: QApplication) -> None:
     palette = QPalette()
@@ -15,8 +17,8 @@ def apply_dark_palette(app: QApplication) -> None:
     palette.setColor(QPalette.ColorRole.Button, QColor(50, 50, 50))
     palette.setColor(QPalette.ColorRole.ButtonText, Qt.GlobalColor.white)
     palette.setColor(QPalette.ColorRole.BrightText, Qt.GlobalColor.red)
-    palette.setColor(QPalette.ColorRole.Link, QColor(0, 120, 215))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))
+    palette.setColor(QPalette.ColorRole.Link, QColor(COLOR_ACCENT))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(COLOR_ACCENT))
     palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
     app.setPalette(palette)
 

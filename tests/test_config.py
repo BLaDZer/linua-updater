@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from linua_updater.constants import DEFAULT_REGION_API, DEFAULT_VERSION_CHECK_URL
+from linua_updater.constants import DEFAULT_REGION_API_URL, DEFAULT_VERSION_CHECK_URL
 from linua_updater.paths import AppPaths
 from linua_updater.utils.config import ConfigManager
 
@@ -50,7 +50,7 @@ def test_get_network_merges_only_falsy(isolated_app_paths):
     c.set("network", {"version_check_url": "", "region_api": ""})
     net = c.get_network()
     assert net["version_check_url"] == DEFAULT_VERSION_CHECK_URL
-    assert net["region_api"] == DEFAULT_REGION_API
+    assert net["region_api"] == DEFAULT_REGION_API_URL
 
 
 def test_get_network_keeps_custom_values(isolated_app_paths):

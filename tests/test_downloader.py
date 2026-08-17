@@ -3,6 +3,7 @@ import time
 
 import pytest
 
+from linua_updater.constants import GB, MB
 import linua_updater.core.downloader as dl_mod
 from linua_updater.core.downloader import SmartDownloader
 
@@ -184,7 +185,7 @@ def test_size_mismatch_detected(tmp_path, monkeypatch):
 def test_file_too_large_rejected(tmp_path, monkeypatch):
     dl, session = _make_downloader(
         monkeypatch,
-        FakeResponse(chunks=[b"x"], headers={"content-length": str(11 * 1024 * 1024 * 1024)}),
+        FakeResponse(chunks=[b"x"], headers={"content-length": str(11 * GB)}),
     )
     out = tmp_path / "file.zip"
     ok, msg = dl._try_download("https://example.com/file.zip", str(out), str(tmp_path / "file.zip.part"))

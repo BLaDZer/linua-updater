@@ -6,9 +6,24 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from linua_updater.constants import DEFAULT_DATABASE_FALLBACK, DEFAULT_DATABASE_URL, SIZE_ESTIMATES
+from linua_updater.constants import (
+    CACHE_TIMESTAMP_KEY,
+    DATABASE_DLC_KEY_SIZE,
+    DATABASE_KEY_DLC,
+    DEFAULT_DATABASE_FALLBACK,
+    DEFAULT_DATABASE_URL,
+    HTTP_OK,
+    HTTP_TIMEOUT_SEC,
+    SECONDS_IN_HOUR,
+    SIZE_ESTIMATES,
+)
 from linua_updater.core.models import DLCInfo
 from linua_updater.paths import AppPaths
+
+SOURCE_CACHE = "cache"
+SOURCE_REMOTE = "remote"
+SOURCE_STALE_CACHE = "stale_cache"
+SOURCE_FALLBACK = "fallback"
 
 
 class DLCDatabase:
@@ -32,7 +47,7 @@ class DLCDatabase:
         self.cache_file = cache_file or AppPaths.DATABASE_CACHE_FILE
         self.cache_duration = cache_duration if cache_duration is not None else AppPaths.DATABASE_CACHE_DURATION
         self.data: Dict[str, Any] = self._load()
-        self.dlc: Dict[str, Any] = self.data.get("dlc", {})
+        self.dlc: Dict[str, Any] = self.data.get(DATABASE_KEY_DLC, {})
         self._apply_sizes()
         self._build_infos()
 
@@ -45,15 +60,15 @@ class DLCDatabase:
         except OSError:
             pass
         self.data = self._load()
-        self.dlc = self.data.get("dlc", {})
+        self.dlc = self.data.get(DATABASE_KEY_DLC, {})
         self._apply_sizes()
         self._build_infos()
-        return self.source == "remote"
+        return self.source == SOURCE_REMOTE
 
     def _apply_sizes(self) -> None:
         for dlc_id, info in self.dlc.items():
-            if dlc_id in SIZE_ESTIMATES and not info.get("size"):
-                info["size"] = SIZE_ESTIMATES[dlc_id]
+            if dlc_id in SIZE_ESTIMATES and not info.get(DATABASE_DLC_KEY_SIZE):
+                info[DATABASE_DLC_KEY_SIZE] = SIZE_ESTIMATES[dlc_id]
 
     def _build_infos(self) -> None:
         self._infos: Dict[str, DLCInfo] = {dlc_id: DLCInfo.from_entry(dlc_id, info) for dlc_id, info in self.dlc.items()}
@@ -61,18 +76,18 @@ class DLCDatabase:
     def _load(self) -> Dict[str, Any]:
         fresh = self._load_cache(fresh_only=True)
         if fresh is not None:
-            self.source = "cache"
+            self.source = SOURCE_CACHE
             return fresh
         downloaded = self._download()
         if downloaded is not None:
             self._save_cache(downloaded)
-            self.source = "remote"
+            self.source = SOURCE_REMOTE
             return downloaded
         stale = self._load_cache(fresh_only=False)
         if stale is not None:
-            self.source = "stale_cache"
+            self.source = SOURCE_STALE_CACHE
             return stale
-        self.source = "fallback"
+        self.source = SOURCE_FALLBACK
         return copy.deepcopy(DEFAULT_DATABASE_FALLBACK)
 
     def _load_cache(self, fresh_only: bool = True) -> Optional[Dict[str, Any]]:
@@ -80,8 +95,8 @@ class DLCDatabase:
         try:
             with open(self.cache_file, encoding="utf-8") as f:
                 data = json.load(f)
-            self._cache_age_h = int((time.time() - data.get("timestamp", 0)) / 3600)
-            if fresh_only and time.time() - data.get("timestamp", 0) >= self.cache_duration:
+            self._cache_age_h = int((time.time() - data.get(CACHE_TIMESTAMP_KEY, 0)) / SECONDS_IN_HOUR)
+            if fresh_only and time.time() - data.get(CACHE_TIMESTAMP_KEY, 0) >= self.cache_duration:
                 return None
             payload = data.get("database")
             if isinstance(payload, dict) and self._is_valid(payload):
@@ -92,8 +107,8 @@ class DLCDatabase:
 
     def _download(self) -> Optional[Dict[str, Any]]:
         try:
-            response = requests.get(self.db_url, timeout=10)
-            if response.status_code == 200:
+            response = requests.get(self.db_url, timeout=HTTP_TIMEOUT_SEC)
+            if response.status_code == HTTP_OK:
                 payload = response.json()
                 if isinstance(payload, dict) and self._is_valid(payload):
                     return payload
@@ -104,7 +119,7 @@ class DLCDatabase:
     def _save_cache(self, payload: Dict[str, Any]) -> None:
         try:
             AppPaths.ensure()
-            cache = {"timestamp": time.time(), "database": payload}
+            cache = {CACHE_TIMESTAMP_KEY: time.time(), "database": payload}
             with open(self.cache_file, "w", encoding="utf-8") as f:
                 json.dump(cache, f, ensure_ascii=False)
         except Exception:
@@ -114,7 +129,7 @@ class DLCDatabase:
     def _is_valid(payload: Any) -> bool:
         if not isinstance(payload, dict):
             return False
-        dlc = payload.get("dlc")
+        dlc = payload.get(DATABASE_KEY_DLC)
         return isinstance(dlc, dict) and len(dlc) > 0
 
     def all(self) -> Dict[str, DLCInfo]:
@@ -129,10 +144,10 @@ class DLCDatabase:
 
     def source_description(self) -> str:
         """One ready-to-log sentence naming which branch produced the payload."""
-        if self.source == "remote":
+        if self.source == SOURCE_REMOTE:
             return f"DLC database: refreshed from remote ({self.db_url})"
-        if self.source == "stale_cache":
+        if self.source == SOURCE_STALE_CACHE:
             return f"DLC database: loaded from stale cache ({self.cache_file}, ~{self._cache_age_h} h old)"
-        if self.source == "fallback":
+        if self.source == SOURCE_FALLBACK:
             return "DLC database: using built-in fallback data"
         return f"DLC database: loaded from cache ({self.cache_file})"
