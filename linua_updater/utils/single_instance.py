@@ -9,16 +9,19 @@ class SingleInstanceLock:
 
     def acquire(self):
         for port in range(self.port, self.port + 10):
+            sock = None
             try:
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                self.socket.bind(("127.0.0.1", port))
-                self.socket.listen(1)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind(("127.0.0.1", port))
+                sock.listen(1)
+                self.socket = sock
                 self.port = port
                 self.is_locked = True
                 return True
             except OSError:
-                self.socket.close()
+                if sock is not None:
+                    sock.close()
                 continue
         return False
 

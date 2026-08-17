@@ -14,6 +14,9 @@ dependencies = [
 dev = [
     "pytest",
     "ruff",
+    "mypy",
+    "types-requests",
+    "PyQt6-stubs",
     "pyinstaller",
 ]
 
@@ -31,6 +34,22 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 120
 target-version = "py38"
+
+[tool.mypy]
+python_version = "3.10"
+files = ["linua_updater"]
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+warn_return_any = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+
+# The codebase is largely untyped (grown organically from a single-file script).
+# Forcing annotations on every function is deferred until a migration task;
+# check_untyped_defs already checks the bodies of untyped functions.
+disallow_untyped_defs = false
 
 [tool.ruff.format]
 quote-style = "double"

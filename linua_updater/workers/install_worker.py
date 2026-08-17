@@ -1,5 +1,6 @@
 import threading
 from concurrent.futures import CancelledError, as_completed
+from typing import Union
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -135,6 +136,7 @@ class InstallWorker(QObject):
             for source in sources:
                 if self._cancelled:
                     return dlc_id, False, "Cancelled"
+                downloader: Union[TorrentDownloader, SmartDownloader]
                 if source.getType() == "magnet":
                     downloader = TorrentDownloader(self.logger)
                 else:

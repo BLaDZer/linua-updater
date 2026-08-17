@@ -1,4 +1,5 @@
 import json
+from typing import Any, Dict
 
 from linua_updater.constants import DEFAULT_MIRRORS, DEFAULT_PROXY_PORTS, DEFAULT_REGION_API, DEFAULT_VERSION_CHECK_URL
 from linua_updater.paths import AppPaths
@@ -7,6 +8,7 @@ from linua_updater.paths import AppPaths
 class ConfigManager:
     def __init__(self):
         self.path = AppPaths.CONFIG_FILE
+        self.data: Dict[str, Any] = {}
         AppPaths.ensure()
         if not self.path.exists():
             self.data = {

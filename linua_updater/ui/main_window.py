@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Set
 
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSlot
 from PyQt6.QtGui import QFont, QFontDatabase
@@ -444,7 +445,7 @@ class LinuaUI(QMainWindow):
         self.update_dlc_status()
 
     def detect_installed(self, game_path):
-        installed = set()
+        installed: Set[str] = set()
         if not os.path.exists(game_path):
             return installed
         try:

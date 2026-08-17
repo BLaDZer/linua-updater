@@ -2,6 +2,7 @@
 REM Run the test suite and linters using the venv.
 REM   - python -m pytest tests/
 REM   - ruff check linua_updater/
+REM   - mypy linua_updater/
 setlocal
 
 set "SCRIPT_DIR=%~dp0"
@@ -18,6 +19,9 @@ set "PY=%VENV_DIR%\Scripts\python.exe"
 
 echo [check] Running ruff check
 "%PY%" -m ruff check "%REPO_ROOT%\linua_updater"
+
+echo [check] Running mypy
+"%PY%" -m mypy "%REPO_ROOT%\linua_updater"
 
 echo [check] Running pytest
 "%PY%" -m pytest "%REPO_ROOT%\tests"

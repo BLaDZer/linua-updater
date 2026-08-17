@@ -189,9 +189,10 @@ pip install -e .                                    # installs requests + PyQt6
 python -m linua_updater                              # run the GUI
 QT_QPA_PLATFORM=offscreen python -m linua_updater    # run without a display (CI/dev)
 
-pip install -e ".[dev]"                              # pytest, ruff, pyinstaller
+pip install -e ".[dev]"                              # pytest, ruff, mypy, pyinstaller
 python -m pytest tests/                              # smoke tests (core logic + cross-platform helpers)
 ruff check linua_updater/                            # lint
+mypy linua_updater/                                  # static type checks
 ```
 
 Tests cover the non-GUI core logic (catalog size, zip-slip rejection, disk-space math, config/persistence round-trips, semver comparison) plus per-platform helpers (data-dir resolution, admin/elevation fallbacks, 7-Zip discovery, Steam game detection, UI placeholder/browse/font defaults); PyQt6 is only required to import/run the UI and worker modules.
@@ -204,7 +205,7 @@ The `scripts/` directory contains self-contained helpers that operate on the rep
 | --- | --- |
 | `setup.sh` / `setup.bat` | Creates `.venv` if missing (idempotent), upgrades pip, installs the package with dev extras (`pip install -e ".[dev]"`). |
 | `build.sh` / `build.bat` | Activates `.venv`, (re)installs dependencies, runs `pyinstaller --noconfirm build.spec`, and prints the produced artifact. |
-| `check.sh` / `check.bat` | Activates `.venv`, runs `python -m pytest tests/` then `ruff check linua_updater/`. |
+| `check.sh` / `check.bat` | Activates `.venv`, runs `python -m pytest tests/`, `ruff check linua_updater/` and `mypy linua_updater/`. |
 | `run.sh` / `run.bat` | Activates `.venv` and runs `python -m linua_updater`. On headless Linux (`bash`, no `DISPLAY`/`WAYLAND_DISPLAY`) `run.sh` falls back to `QT_QPA_PLATFORM=offscreen`. |
 
 Alternative to manual activation: `source .venv/bin/activate && python -m linua_updater` (Windows: `.venv\Scripts\activate`).

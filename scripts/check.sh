@@ -2,6 +2,7 @@
 # Run the test suite and linters using the venv.
 #   - python -m pytest tests/
 #   - ruff check linua_updater/
+#   - mypy linua_updater/
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,6 +21,9 @@ source "${VENV_DIR}/bin/activate"
 
 echo "[check] Running ruff check"
 ruff check linua_updater/
+
+echo "[check] Running mypy"
+mypy linua_updater/
 
 echo "[check] Running pytest"
 python -m pytest tests/

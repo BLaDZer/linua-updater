@@ -332,8 +332,10 @@ class DLCSelector(QDialog):
     def populate(self, db, installed):
         for i in reversed(range(self.layout_c.count())):
             item = self.layout_c.itemAt(i)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
         self.cbs.clear()
 
         available = [(dlc_id, info) for dlc_id, info in db.items() if dlc_id.upper() not in installed]

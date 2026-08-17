@@ -2,9 +2,12 @@ import os
 import tempfile
 import threading
 import time
+from typing import Callable, List, Optional
 
 from linua_updater.core.checksum import verify_file_checksums
 from linua_updater.utils.sevenzip import SevenZipFinder
+
+ProgressCallback = Callable[[float, float, float], None]
 
 
 class SingleDLCInstaller:
@@ -17,7 +20,7 @@ class SingleDLCInstaller:
         self.ex = extractor
         self.logger = logger
         self.stats = stats
-        self._progress_callback = None
+        self._progress_callback: Optional[ProgressCallback] = None
         self._start_time = None
 
     def set_progress_callback(self, callback):
@@ -97,7 +100,7 @@ class MultiPartInstaller:
         self.seven = seven_path
         self.logger = logger
         self.stats = stats
-        self._progress_callback = None
+        self._progress_callback: Optional[ProgressCallback] = None
         self._start_time = None
 
     def set_progress_callback(self, callback):
@@ -108,7 +111,7 @@ class MultiPartInstaller:
             self.logger.log(f"{self.dlc}: {text}", level)
 
     def run(self):
-        downloaded_files = []
+        downloaded_files: List[str] = []
         total_size = 0
         try:
             self._start_time = time.time()
@@ -127,10 +130,13 @@ class MultiPartInstaller:
                 part_weight = 100.0 / total_parts
                 current_base = i * part_weight
                 if self._progress_callback:
+                    callback = self._progress_callback
 
-                    def part_progress(progress, downloaded, total, base=current_base, weight=part_weight):
+                    def part_progress(
+                        progress, downloaded, total, base=current_base, weight=part_weight, cb=callback
+                    ):
                         total_progress = base + (progress * weight / 100)
-                        self._progress_callback(total_progress, downloaded, total)
+                        cb(total_progress, downloaded, total)
 
                     self.dl.set_progress_callback(part_progress)
                 ok, reason = self.dl.download(url, out, dlc_name, resume=self.dl.resume_enabled)
@@ -186,7 +192,7 @@ class TorrentInstaller:
         self.ex = extractor
         self.logger = logger
         self.stats = stats
-        self._progress_callback = None
+        self._progress_callback: Optional[ProgressCallback] = None
         self._start_time = None
 
     def set_progress_callback(self, callback):

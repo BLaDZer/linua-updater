@@ -157,6 +157,9 @@ class TorrentDownloader:
                 except Exception as e:
                     return False, str(e)
 
+                if self._process.stdout is None:
+                    return False, "aria2c did not provide stdout"
+
                 restart = False
                 try:
                     while True:

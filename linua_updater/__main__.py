@@ -14,7 +14,6 @@ try:
 except ImportError:
     pass
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from linua_updater.constants import APP_VERSION
@@ -26,10 +25,6 @@ from linua_updater.utils.single_instance import SingleInstanceLock
 
 
 def main():
-    if hasattr(Qt, "AA_EnableHighDpiScaling"):
-        QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    if hasattr(Qt, "AA_UseHighDpiPixmaps"):
-        QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
     if SingleInstanceLock.is_already_running():
         QMessageBox.critical(
             None, "Already Running", "Linua Updater is already running.\nCheck your system tray / notification area."
