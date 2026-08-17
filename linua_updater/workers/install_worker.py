@@ -149,7 +149,7 @@ class InstallWorker(QObject):
             last_message = None
             for source in sources:
                 if self._cancelled:
-                    return dlc_id, False, "Cancelled"
+                    return dlc_id, False, "Cancelled"  # type: ignore[unreachable]  # cancel() may run on another thread
                 downloader: Union[TorrentDownloader, SmartDownloader]
                 if source.getType() == "magnet":
                     downloader = TorrentDownloader(self.logger)
@@ -217,7 +217,7 @@ class InstallWorker(QObject):
                     future = self.parallel_manager.executor.submit(self._install_single, dlc_id)
                 except RuntimeError:
                     if self._cancelled:
-                        break
+                        break  # type: ignore[unreachable]  # cancel() may run on another thread
                     raise
                 futures[future] = dlc_id
             for future in as_completed(futures):

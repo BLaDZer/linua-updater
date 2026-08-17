@@ -65,12 +65,14 @@ class DownloadSource:
             else:
                 source_type = None
         checksums = CheckSums.from_dict(raw.get("checksum"))
-        priority: int = raw.get("priority", 0)
-        if priority is None or isinstance(priority, bool):
+        priority_raw = raw.get("priority")
+        if priority_raw is None or isinstance(priority_raw, bool):
             priority = 0
-        elif not isinstance(priority, int):
+        elif isinstance(priority_raw, int):
+            priority = priority_raw
+        else:
             try:
-                priority = int(priority)
+                priority = int(priority_raw)
             except (TypeError, ValueError):
                 priority = 0
         if source_type == "parts":

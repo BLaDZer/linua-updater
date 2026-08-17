@@ -44,8 +44,18 @@ strict_equality = true
 warn_return_any = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+warn_unreachable = true
+warn_unused_configs = true
+strict = true
 disallow_any_generics = true
 disallow_untyped_defs = true
+disallow_any_unimported = true
+
+## They're useful for extremely type-purist projects, but they can become painful when interacting with third-party libraries.
+## Mypy provides these specifically as additional ways of tightening control over Any; they aren't part of normal strict
+#disallow_any_expr = true
+#disallow_any_explicit = true
+#disallow_any_decorated = true
 
 [tool.ruff.format]
 quote-style = "double"

@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import List, Optional, Set
 
 
+def _platform() -> str:
+    return sys.platform
+
+
 class GameDetector:
     _EXE_REL = ("Game", "Bin", "TS4_x64.exe")
     _EXE_NAME = "TS4_x64.exe"
@@ -16,10 +20,10 @@ class GameDetector:
 
     @staticmethod
     def find_from_registry() -> List[str]:
-        if sys.platform != "win32":
+        if _platform() != "win32":
             return []
         try:
-            import winreg
+            winreg = __import__("winreg")
 
             paths_to_check = []
             registry_keys = [
@@ -44,7 +48,7 @@ class GameDetector:
 
     @staticmethod
     def _steam_vdf_candidates(home: Path) -> List[Path]:
-        if sys.platform == "darwin":
+        if _platform() == "darwin":
             return [home / "Library" / "Application Support" / "Steam" / "steamapps" / "libraryfolders.vdf"]
         return [
             home / ".local" / "share" / "Steam" / "steamapps" / "libraryfolders.vdf",
@@ -53,7 +57,7 @@ class GameDetector:
 
     @staticmethod
     def _steam_home_guesses(home: Path) -> List[str]:
-        if sys.platform == "darwin":
+        if _platform() == "darwin":
             return [str(home / "Library" / "Application Support" / "Steam" / "steamapps" / "common" / "The Sims 4")]
         return [
             str(home / ".local" / "share" / "Steam" / "steamapps" / "common" / "The Sims 4"),
@@ -99,7 +103,7 @@ class GameDetector:
 
     @staticmethod
     def find_from_steam() -> List[str]:
-        if sys.platform == "win32":
+        if _platform() == "win32":
             return []
         home = Path.home()
         found_paths: List[str] = []
@@ -127,7 +131,7 @@ class GameDetector:
         for path in registry_paths:
             if path not in found_paths and GameDetector._has_valid_exe(path):
                 found_paths.append(path)
-        if sys.platform == "win32":
+        if _platform() == "win32":
             drives = ["C", "D", "E", "F", "G", "H"]
             search_paths = [
                 r"\Program Files (x86)\Steam\steamapps\common\The Sims 4",

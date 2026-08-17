@@ -4,6 +4,10 @@ import sys
 from typing import Any, List, Optional
 
 
+def _platform() -> str:
+    return sys.platform
+
+
 class Aria2Finder:
     POSSIBLE_LOCATIONS = [
         "aria2c.exe",
@@ -23,7 +27,7 @@ class Aria2Finder:
         self.logger = logger
 
     def _executable_names(self) -> List[str]:
-        if sys.platform == "win32":
+        if _platform() == "win32":
             return ["aria2c.exe"]
         return ["aria2c"]
 

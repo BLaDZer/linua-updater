@@ -21,15 +21,19 @@ import sys
 from pathlib import Path
 
 
+def _platform() -> str:
+    return sys.platform
+
+
 def _default_base_dir() -> Path:
     """Resolve the platform-appropriate application data directory."""
-    if sys.platform == "win32":
+    if _platform() == "win32":
         local_appdata = os.environ.get("LOCALAPPDATA")
         if local_appdata:
             return Path(local_appdata) / "LinuaUpdater"
         return Path.home() / "AppData" / "Local" / "LinuaUpdater"
 
-    if sys.platform == "darwin":
+    if _platform() == "darwin":
         return Path.home() / "Library" / "Application Support" / "LinuaUpdater"
 
     xdg_data_home = os.environ.get("XDG_DATA_HOME")

@@ -4,6 +4,10 @@ import sys
 from typing import Any, List, Optional
 
 
+def _platform() -> str:
+    return sys.platform
+
+
 class SevenZipFinder:
     POSSIBLE_LOCATIONS = [
         "7z.exe",
@@ -29,7 +33,7 @@ class SevenZipFinder:
         self.logger = logger
 
     def _executable_names(self) -> List[str]:
-        if sys.platform == "win32":
+        if _platform() == "win32":
             return ["7z.exe", "7za.exe"]
         return ["7z", "7za", "7zz"]
 

@@ -104,13 +104,13 @@ class SmartDownloader:
             return True, "OK"
 
         if self._cancelled:
-            self._active = False
+            self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
             return False, "Cancelled"
 
         if self.diagnostics and self.diagnostics.working_proxies and self.use_proxy:
             for proxy in self.diagnostics.working_proxies:
                 if self._cancelled:
-                    self._active = False
+                    self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
                     return False, "Cancelled"
                 self.set_proxy(proxy)
                 success, msg = self._try_download_with_retry(url, out_path, temp_path, downloaded, expected_size)
@@ -120,14 +120,14 @@ class SmartDownloader:
                     return True, "Downloaded via proxy"
 
         if self._cancelled:
-            self._active = False
+            self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
             return False, "Cancelled"
 
         mirrors = self.mirrors
         for domain, mirror in mirrors.items():
             if domain in url:
                 if self._cancelled:
-                    self._active = False
+                    self._active = False  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
                     return False, "Cancelled"
                 mirror_url = url.replace(domain, mirror)
                 self.set_proxy(None)
@@ -209,7 +209,7 @@ class SmartDownloader:
                                 while self._paused and not self._cancelled:
                                     self._pause_cond.wait(timeout=0.5)
                         if self._cancelled:
-                            return False, "Cancelled"
+                            return False, "Cancelled"  # type: ignore[unreachable]  # may flip to True (cancel) from another thread
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)

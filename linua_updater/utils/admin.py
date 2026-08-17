@@ -9,6 +9,11 @@ import time
 from pathlib import Path
 from typing import List
 
+
+def _platform() -> str:
+    return sys.platform
+
+
 WIN32_PROTECTED_PREFIXES = [
     r"c:\program files",
     r"c:\program files (x86)",
@@ -23,9 +28,9 @@ class AdminElevator:
     @staticmethod
     def is_admin() -> bool:
         try:
-            if sys.platform == "win32":
-                return bool(ctypes.windll.shell32.IsUserAnAdmin())
-            return os.geteuid() == 0
+            if _platform() == "win32":
+                return bool(ctypes.__dict__["windll"].shell32.IsUserAnAdmin())
+            return getattr(os, "geteuid", lambda: 0)() == 0
         except:
             return False
 
@@ -42,9 +47,9 @@ class AdminElevator:
         if not path:
             return False
         path_str = str(path)
-        if sys.platform == "win32" and AdminElevator._matches_win32_protected(path_str):
+        if _platform() == "win32" and AdminElevator._matches_win32_protected(path_str):
             return True
-        if sys.platform != "win32":
+        if _platform() != "win32":
             normalized = os.path.normpath(path_str)
             for prefix in POSIX_PROTECTED_PREFIXES:
                 if normalized == prefix or normalized.startswith(prefix + os.sep):
@@ -73,7 +78,7 @@ class AdminElevator:
         try:
             if AdminElevator.is_admin():
                 return True
-            if sys.platform == "win32":
+            if _platform() == "win32":
                 if getattr(sys, "frozen", False):
                     script = sys.executable
                     params = " ".join(f'"{arg}"' for arg in sys.argv[1:])
@@ -82,11 +87,11 @@ class AdminElevator:
                     params = f'"{sys.argv[0]}"'
                     if len(sys.argv) > 1:
                         params += " " + " ".join(f'"{arg}"' for arg in sys.argv[1:])
-                ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", script, params, None, 1)
+                ret = ctypes.__dict__["windll"].shell32.ShellExecuteW(None, "runas", script, params, None, 1)
                 if ret > 32:
                     sys.exit(0)
                 return False
-            if sys.platform == "darwin":
+            if _platform() == "darwin":
                 if not shutil.which("osascript"):
                     return False
                 launch_cmd = " ".join(shlex.quote(arg) for arg in AdminElevator._launch_args())

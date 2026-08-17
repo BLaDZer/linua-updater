@@ -176,7 +176,7 @@ class TorrentDownloader:
                         if not line:
                             break
                         if self._cancelled:
-                            self.logger.log(f"Torrent download cancelled: {display}", "WARNING")
+                            self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                             return False, "Cancelled"
                         if self._paused:
                             restart = True  # halt; restart below once resumed
@@ -199,7 +199,7 @@ class TorrentDownloader:
                     # loop hit a summary line while paused → wait, then restart
                     self._wait_for_resume()
                     if self._cancelled:
-                        self.logger.log(f"Torrent download cancelled: {display}", "WARNING")
+                        self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                         return False, "Cancelled"
                     self._process.wait()  # reap the terminated child
                     self._process = None
@@ -208,13 +208,13 @@ class TorrentDownloader:
                 exit_code = self._process.wait()
                 self._process = None
                 if self._cancelled:
-                    self.logger.log(f"Torrent download cancelled: {display}", "WARNING")
+                    self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                     return False, "Cancelled"
                 if self._paused:
                     # readline hit EOF because pause() terminated the process → wait, then restart
                     self._wait_for_resume()
                     if self._cancelled:
-                        self.logger.log(f"Torrent download cancelled: {display}", "WARNING")
+                        self.logger.log(f"Torrent download cancelled: {display}", "WARNING")  # type: ignore[unreachable]  # cancel() may run in another thread
                         return False, "Cancelled"
                     continue
                 if exit_code != 0:
