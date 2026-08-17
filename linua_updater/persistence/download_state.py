@@ -33,7 +33,7 @@ class DownloadState:
         if not self.state_file.exists():
             return None
         try:
-            with open(self.state_file, "r") as f:
+            with open(self.state_file) as f:
                 state = json.load(f)
             # Check if state is recent (less than 24 hours old)
             if time.time() - state.get("timestamp", 0) > AppPaths.DOWNLOAD_STATE_DURATION:

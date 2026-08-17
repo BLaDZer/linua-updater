@@ -47,7 +47,7 @@ select = [
     "I",      # isort
     "B",      # flake8-bugbear
     "UP",     # pyupgrade
-    "SIM",    # flake8-simplify
+#    "SIM",    # flake8-simplify
 ]
 
 # E501/E402: monolith lines are long and imports stay at module top for execution order.

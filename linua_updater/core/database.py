@@ -76,7 +76,7 @@ class DLCDatabase:
     def _load_cache(self, fresh_only=True):
         """Return the cached payload, or ``None`` when missing/invalid/stale."""
         try:
-            with open(self.cache_file, "r", encoding="utf-8") as f:
+            with open(self.cache_file, encoding="utf-8") as f:
                 data = json.load(f)
             self._cache_age_h = int((time.time() - data.get("timestamp", 0)) / 3600)
             if fresh_only and time.time() - data.get("timestamp", 0) >= self.cache_duration:

@@ -350,7 +350,7 @@ class LinuaUI(QMainWindow):
 
         try:
             if cache_file.exists():
-                with open(cache_file, "r") as f:
+                with open(cache_file) as f:
                     cache = json.load(f)
                 if time.time() - cache.get("timestamp", 0) < cache_duration:
                     tool = NetworkDiagnostics(

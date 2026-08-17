@@ -324,7 +324,7 @@ class DLCSelector(QDialog):
 
     def toggle_all(self, state):
         checked = state == Qt.CheckState.Checked
-        for dlc_id, cb in self.cbs.items():
+        for _dlc_id, cb in self.cbs.items():
             if cb.isVisible() and cb.isEnabled():
                 cb.setChecked(checked)
         self.update_install_button()
@@ -494,7 +494,7 @@ class UninstallDialog(QDialog):
 
     def toggle_all(self, state):
         checked = state == Qt.CheckState.Checked
-        for dlc_id, cb in self.cbs.items():
+        for _dlc_id, cb in self.cbs.items():
             cb.setChecked(checked)
 
     def update_uninstall_button(self):

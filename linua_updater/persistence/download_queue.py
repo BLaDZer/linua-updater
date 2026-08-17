@@ -13,7 +13,7 @@ class DownloadQueue:
     def _load(self):
         if self.queue_file.exists():
             try:
-                with open(self.queue_file, "r", encoding="utf-8") as f:
+                with open(self.queue_file, encoding="utf-8") as f:
                     return json.load(f)
             except:
                 return {}

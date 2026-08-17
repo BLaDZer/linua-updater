@@ -28,7 +28,7 @@ class UpdateChecker(QObject):
         """Load cached update check result"""
         try:
             if self.cache_file.exists():
-                with open(self.cache_file, "r") as f:
+                with open(self.cache_file) as f:
                     cache = json.load(f)
                     cached_time = cache.get("timestamp", 0)
                     current_time = time.time()
@@ -100,10 +100,10 @@ class UpdateChecker(QObject):
             latest_parts = [int(x) for x in latest.split(".")]
             current_parts = [int(x) for x in current.split(".")]
 
-            for l, c in zip(latest_parts, current_parts):
-                if l > c:
+            for number_from_latest, number_from_current in zip(latest_parts, current_parts):
+                if number_from_latest > number_from_current:
                     return True
-                elif l < c:
+                elif number_from_latest < number_from_current:
                     return False
 
             return len(latest_parts) > len(current_parts)
