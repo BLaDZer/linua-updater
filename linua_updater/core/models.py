@@ -1,7 +1,7 @@
 import threading
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from linua_updater.constants import (
     CHECKSUM_MD5,
@@ -114,11 +114,11 @@ class DownloadSource:
             return DownloadSource.parts(parts, priority=priority)
 
         if source_type == SOURCE_TYPE_URL:
-            return DownloadSource.url(raw.get(DATABASE_DLC_KEY_URL), checksums=checksums, priority=priority)
+            return DownloadSource.url(cast(str, raw.get(DATABASE_DLC_KEY_URL)), checksums=checksums, priority=priority)
         if source_type == SOURCE_TYPE_MAGNET:
-            return DownloadSource.magnet(raw.get(DATABASE_DLC_KEY_MAGNET), checksums=checksums, priority=priority)
+            return DownloadSource.magnet(cast(str, raw.get(DATABASE_DLC_KEY_MAGNET)), checksums=checksums, priority=priority)
 
-        return cls(source_type, checksums=checksums, priority=priority)
+        return cls(cast(str, source_type), checksums=checksums, priority=priority)
 
     @classmethod
     def url(cls, url: str, checksums: Optional["CheckSums"] = None, priority: int = 0) -> "DownloadSource":
@@ -194,7 +194,7 @@ class DLCInfo:
             mirrors.append(source)
 
         mirrors.sort(key=lambda s: s.getPriority(), reverse=True)
-        main = mirrors.pop(0) # with the highest priority
+        main = mirrors.pop(0) if mirrors else None # with the highest priority
 
         return cls(dlc_id, raw.get(DATABASE_DLC_KEY_NAME, "Unknown"), raw.get(DATABASE_DLC_KEY_SIZE), main, mirrors)
 

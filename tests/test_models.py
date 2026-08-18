@@ -156,20 +156,23 @@ def test_dlc_info_legacy_magnet_and_parts_mirrors():
     )
     assert info.getName() == "Get Famous"
     main = info.getMainDownloadSource()
-    assert main.getSource() == "https://example.com/EP01.zip"
+    assert main is not None
+    assert main.getType() == "magnet"
+    assert main.getSource() == "magnet:?xt=foo"
+    assert main.getPriority() == 100
+    assert main.getCheckSums().get("sha256") == "c0ffee"
     mirrors = info.getMirrors()
     assert len(mirrors) == 2
-    assert mirrors[0].getType() == "magnet"
-    assert mirrors[0].getSource() == "magnet:?xt=foo"
-    assert mirrors[0].getPriority() == 0
-    assert mirrors[0].getCheckSums().get("sha256") == "c0ffee"
-    assert mirrors[1].getType() == "parts"
-    assert mirrors[1].getPriority() == 0
-    parts = mirrors[1].getParts()
+    assert mirrors[0].getType() == "parts"
+    assert mirrors[0].getPriority() == 50
+    parts = mirrors[0].getParts()
     assert len(parts) == 2
     assert parts[0].getType() == "url"
     assert parts[0].getSource() == "https://example.com/1.7z.001"
     assert parts[1].getSource() == "https://example.com/1.7z.002"
+    assert mirrors[1].getType() == "url"
+    assert mirrors[1].getSource() == "https://example.com/EP01.zip"
+    assert mirrors[1].getPriority() == 30
 
 
 def test_dlc_info_mirror_sort_by_priority_desc():
@@ -229,11 +232,19 @@ def test_dlc_info_get_size():
     assert info.getSize() == 12345
 
 
-def test_dlc_info_no_main_source_without_url():
+def test_dlc_info_magnet_only_uses_magnet_as_main():
     info = DLCInfo.from_entry("EP01", {"name": "x", "magnet": "magnet:?xt=foo"})
+    main = info.getMainDownloadSource()
+    assert main is not None
+    assert main.getType() == "magnet"
+    assert main.getSource() == "magnet:?xt=foo"
+    assert info.getMirrors() == []
+
+
+def test_dlc_info_empty_entry_no_main_source():
+    info = DLCInfo.from_entry("EP01", {})
     assert info.getMainDownloadSource() is None
-    assert len(info.getMirrors()) == 1
-    assert info.getMirrors()[0].getType() == "magnet"
+    assert info.getMirrors() == []
 
 
 def test_download_source_from_dict_infers_type():

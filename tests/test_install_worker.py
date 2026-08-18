@@ -101,7 +101,7 @@ def test_install_single_cancelled_no_fallback(worker, tmp_path, monkeypatch):
 
         def download(self, magnet, temp, dlc_name=None, expected_size=None):
             magnet_calls.append(magnet)
-            return True, "OK"
+            return False, "Cancelled"
 
     class FakeSmartDownloader:
         resume_enabled = False
@@ -130,12 +130,12 @@ def test_install_single_cancelled_no_fallback(worker, tmp_path, monkeypatch):
     assert dlc_id == "EP01"
     assert ok is False
     assert msg == "Cancelled"
-    assert direct_downloads == ["http://example.com/EP01.zip"]
-    assert magnet_calls == []
+    assert direct_downloads == []
+    assert magnet_calls == ["magnet:?xt=foo"]
     assert worker._active_downloaders == []
 
 
-def test_install_single_url_first_then_magnet_mirror(worker, tmp_path, monkeypatch):
+def test_install_single_magnet_first_then_url_mirror(worker, tmp_path, monkeypatch):
     class FakeLogger:
         def log(self, text, level="INFO"):
             pass
@@ -200,7 +200,7 @@ def test_install_single_url_first_then_magnet_mirror(worker, tmp_path, monkeypat
     dlc_id, ok, msg = worker._install_single("EP01")
     assert dlc_id == "EP01"
     assert ok is False
-    assert msg == "bad torrent"
+    assert msg == "All download attempts failed"
     assert direct_downloads == ["http://example.com/EP01.zip"]
     assert magnet_calls == ["magnet:?xt=foo"]
     assert worker._active_downloaders == []
