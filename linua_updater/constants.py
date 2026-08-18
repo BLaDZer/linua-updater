@@ -81,6 +81,10 @@ DATABASE_DLC_KEY_PRIORITY = "priority"
 DATABASE_DLC_KEY_TYPE = "type"
 DATABASE_DLC_KEY_SIZE = "size"
 
+DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_MAGNET = 100
+DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_PARTS = 50
+DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_URL = 30
+
 # Estimated archive sizes per DLC id (bytes). Used only as a fallback when a
 # catalogue entry carries no ``size`` field.
 SIZE_ESTIMATES = {

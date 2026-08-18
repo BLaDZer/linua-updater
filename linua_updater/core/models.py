@@ -16,6 +16,9 @@ from linua_updater.constants import (
     DATABASE_DLC_KEY_SIZE,
     DATABASE_DLC_KEY_TYPE,
     DATABASE_DLC_KEY_URL,
+    DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_MAGNET,
+    DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_PARTS,
+    DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_URL,
     MB,
 )
 
@@ -62,7 +65,7 @@ class CheckSums:
 class DownloadSource:
     def __init__(
         self,
-        source_type: Optional[str],
+        source_type: str,
         source: Optional[str] = None,
         parts: Optional[List["DownloadSource"]] = None,
         checksums: Optional["CheckSums"] = None,
@@ -108,12 +111,12 @@ class DownloadSource:
                 parsed = cls.from_dict(part)
                 if parsed is not None:
                     parts.append(parsed)
-            return cls(SOURCE_TYPE_PARTS, parts=parts, checksums=checksums, priority=priority)
+            return DownloadSource.parts(parts, priority=priority)
 
         if source_type == SOURCE_TYPE_URL:
-            return cls(SOURCE_TYPE_URL, source=raw.get(DATABASE_DLC_KEY_URL), checksums=checksums, priority=priority)
+            return DownloadSource.url(raw.get(DATABASE_DLC_KEY_URL), checksums=checksums, priority=priority)
         if source_type == SOURCE_TYPE_MAGNET:
-            return cls(SOURCE_TYPE_MAGNET, source=raw.get(DATABASE_DLC_KEY_MAGNET), checksums=checksums, priority=priority)
+            return DownloadSource.magnet(raw.get(DATABASE_DLC_KEY_MAGNET), checksums=checksums, priority=priority)
 
         return cls(source_type, checksums=checksums, priority=priority)
 
@@ -127,9 +130,9 @@ class DownloadSource:
 
     @classmethod
     def parts(
-        cls, part_sources: List["DownloadSource"], checksums: Optional["CheckSums"] = None, priority: int = 0
+        cls, part_sources: List["DownloadSource"], priority: int = 0
     ) -> "DownloadSource":
-        return cls(SOURCE_TYPE_PARTS, parts=part_sources, checksums=checksums, priority=priority)
+        return cls(SOURCE_TYPE_PARTS, parts=part_sources, priority=priority)
 
     def getType(self) -> Optional[str]:
         return self._type
@@ -165,29 +168,34 @@ class DLCInfo:
     @classmethod
     def from_entry(cls, dlc_id: str, raw: Dict[str, Any]) -> "DLCInfo":
         entry_checksums = CheckSums.from_dict(raw.get(DATABASE_DLC_KEY_CHECKSUM))
-        main: Optional[DownloadSource] = None
-
-        if raw.get(DATABASE_DLC_KEY_URL):
-            main = DownloadSource.url(raw[DATABASE_DLC_KEY_URL], checksums=entry_checksums)
 
         mirrors: List[DownloadSource] = []
         if raw.get(DATABASE_DLC_KEY_MAGNET):
-            mirrors.append(DownloadSource.magnet(raw[DATABASE_DLC_KEY_MAGNET], checksums=entry_checksums))
+            mirrors.append(DownloadSource.magnet(
+                raw[DATABASE_DLC_KEY_MAGNET],
+                checksums=entry_checksums,
+                priority=DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_MAGNET,
+            ))
+
+        if raw.get(DATABASE_DLC_KEY_URL):
+            mirrors.append(DownloadSource.url(raw[DATABASE_DLC_KEY_URL], checksums=entry_checksums, priority=DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_URL))
 
         if raw.get(DATABASE_DLC_KEY_PARTS):
             part_sources: List[DownloadSource] = [DownloadSource.url(p) for p in raw[DATABASE_DLC_KEY_PARTS]]
-            mirrors.append(DownloadSource.parts(part_sources, checksums=entry_checksums))
+            mirrors.append(DownloadSource.parts(part_sources, priority=DOWNLOAD_SOURCE_DEFAULT_PRIORITY_FOR_PARTS))
 
         for mirror in raw.get(DATABASE_DLC_KEY_MIRRORS) or []:
             source = DownloadSource.from_dict(mirror)
             if source is None:
                 continue
 
-            if source.getCheckSums() is None and entry_checksums is not None:
-                source._checksums = entry_checksums
+            if source.getCheckSums() is None and entry_checksums is not None and source.getType() != SOURCE_TYPE_PARTS:
+                source._checksums = entry_checksums # mirrors will inherit checksums from the top
             mirrors.append(source)
 
         mirrors.sort(key=lambda s: s.getPriority(), reverse=True)
+        main = mirrors.pop(0) # with the highest priority
+
         return cls(dlc_id, raw.get(DATABASE_DLC_KEY_NAME, "Unknown"), raw.get(DATABASE_DLC_KEY_SIZE), main, mirrors)
 
     def getId(self) -> str:
